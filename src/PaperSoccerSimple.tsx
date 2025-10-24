@@ -610,6 +610,8 @@ function computeValidMoves(pos: Pos, edges: Set<string>, width: number, height: 
 
 // ======= Prosty silnik gry =======
 function useSimpleGameEngine(config: GameConfig, options: { stalemateAsDraw: boolean }) {
+    const pickStartingPlayer = (): Player => (Math.random() < 0.5 ? 0 : 1);
+
     const [history, setHistory] = useState<Move[]>([]);
     const [state, setState] = useState<GameState>(() => {
         const pos = centerPosition(config.width, config.height);
@@ -618,7 +620,7 @@ function useSimpleGameEngine(config: GameConfig, options: { stalemateAsDraw: boo
         return {
             edges,
             pos,
-            current: 0,
+            current: pickStartingPlayer(),
             extraTurn: false,
             winner: null,
             blockedLoser: null,
@@ -721,55 +723,6 @@ function useSimpleGameEngine(config: GameConfig, options: { stalemateAsDraw: boo
         setHistory(newHistory);
     };
 
-    const undo = () => {
-        if (history.length === 0) return;
-
-        const newHistory = history.slice(0, -1);
-        setHistory(newHistory);
-
-        // Przelicz stan od nowa
-        const edges = new Set<string>();
-        let pos = centerPosition(config.width, config.height);
-        let current: Player = 0;
-        let extraTurn = false;
-
-        for (const move of newHistory) {
-            const k = keyEdge(move.from, move.to);
-            edges.add(k);
-            pos = { x: move.to.x, y: move.to.y };
-
-            const bounce = willBounce(move.to, edges, config.width, config.height);
-            if (bounce) {
-                extraTurn = true;
-            } else {
-                current = (current ^ 1) as Player;
-                extraTurn = false;
-            }
-        }
-
-        const validMoves = computeValidMoves(pos, edges, config.width, config.height);
-        let blockedLoser: Player | null = null;
-        let draw = false;
-        if (validMoves.length === 0) {
-            if (options.stalemateAsDraw) {
-                draw = true;
-            } else {
-                blockedLoser = current;
-            }
-        }
-
-        setState({
-            edges,
-            pos,
-            current,
-            extraTurn,
-            winner: null,
-            blockedLoser,
-            validMoves,
-            draw
-        });
-    };
-
     const reset = () => {
         setHistory([]);
         const pos = centerPosition(config.width, config.height);
@@ -778,7 +731,7 @@ function useSimpleGameEngine(config: GameConfig, options: { stalemateAsDraw: boo
         setState({
             edges,
             pos,
-            current: 0,
+            current: pickStartingPlayer(),
             extraTurn: false,
             winner: null,
             blockedLoser: null,
@@ -790,7 +743,6 @@ function useSimpleGameEngine(config: GameConfig, options: { stalemateAsDraw: boo
     return {
         ...state,
         makeMove,
-        undo,
         reset,
         history
     };
@@ -1141,9 +1093,9 @@ function BoardSVG({
 }
 
 export default function PaperSoccerSimple() {
-    const [boardSize, setBoardSize] = useState<BoardSizeOption>("small");
+    const [boardSize, setBoardSize] = useState<BoardSizeOption>("medium");
     const [config, setConfig] = useState<GameConfig>(() => {
-        const preset = BOARD_PRESETS.small;
+        const preset = BOARD_PRESETS.medium;
         return { width: preset.width, height: preset.height, goalWidth: defaultGoalWidth() };
     });
     const [mode, setMode] = useState<"human" | "computer">("computer");
@@ -1165,7 +1117,6 @@ export default function PaperSoccerSimple() {
         history,
         draw,
         makeMove,
-        undo,
         reset
     } = useSimpleGameEngine(config, { stalemateAsDraw });
 
@@ -1426,9 +1377,6 @@ export default function PaperSoccerSimple() {
                               <option value="playerTop">Twoja bramka na górze</option>
                           </select>
                       </label>
-                      <p className="text-xs text-gray-500">
-                        Wszystkie wymiary są parzyste, więc piłka zawsze zaczyna dokładnie na środku.
-                    </p>
                 </div>
 
                 <div className="flex flex-col gap-2 w-full lg:w-auto lg:ml-auto">
@@ -1466,9 +1414,13 @@ export default function PaperSoccerSimple() {
                                 className="border rounded px-2 py-1"
                                 disabled={aiControlsDisabled}
                             >
-                                <option value="easy">Łatwy</option>
-                                <option value="normal">Standard</option>
-                                <option value="hard">Trudny</option>
+                                {(Object.entries(difficultyLabels) as Array<[DifficultyLevel, string]>).map(
+                                    ([value, label]) => (
+                                        <option key={value} value={value}>
+                                            {label}
+                                        </option>
+                                    )
+                                )}
                             </select>
                         </label>
                         <label className={`flex items-center gap-2 ${aiControlsDisabled ? "text-gray-400" : ""}`}>
@@ -1483,7 +1435,6 @@ export default function PaperSoccerSimple() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                        <button onClick={undo} className="border rounded-2xl px-3 py-2 shadow">Cofnij ruch</button>
                         <button onClick={reset} className="border rounded-2xl px-3 py-2 shadow">Nowa gra</button>
                     </div>
                 </div>
@@ -1507,31 +1458,15 @@ export default function PaperSoccerSimple() {
                 lastMove={lastMove}
             />
 
-            <div className="grid md:grid-cols-2 gap-3 text-sm">
-                <div className="p-4 rounded-2xl border">
-                    <h2 className="font-semibold mb-2">Parametry boiska</h2>
-                    <ul className="list-disc pl-5 space-y-1">
-                        <li>Rozmiar: {config.width} × {config.height} kratek ({BOARD_PRESETS[boardSize].label})</li>
-                        <li>Pozycja startowa piłki: ({Math.floor(config.width / 2)}, {Math.floor(config.height / 2)})</li>
-                        <li>Tryb gry: {mode === "computer" ? "gracz vs komputer" : "dwóch graczy"}</li>
-                        <li>Poziom AI: {mode === "computer" ? difficultyLabels[difficulty] : "—"}</li>
-                        <li>Zasada przy braku ruchów: przegrywa gracz bez ruchu</li>
-                        <li>Logowanie decyzji AI: {mode === "computer" && logAiDecisions ? "włączone" : "wyłączone"}</li>
-                        <li>{goalInfo.opponent.positionLabel}: {goalInfo.opponent.label}</li>
-                        <li>{goalInfo.player.positionLabel}: {goalInfo.player.label}</li>
-                        <li>Zakaz ruchu po brzegach, dozwolone odbicia od brzegu i linii.</li>
-                    </ul>
-                </div>
-                <div className="p-4 rounded-2xl border">
-                    <h2 className="font-semibold mb-2">Historia ruchów ({history.length})</h2>
-                    <ol className="list-decimal pl-5 space-y-1 max-h-48 overflow-auto">
-                        {history.map((m, i) => (
-                            <li key={i}>
-                                ({m.from.x},{m.from.y}) → ({m.to.x},{m.to.y})
-                            </li>
-                        ))}
-                    </ol>
-                </div>
+            <div className="p-4 rounded-2xl border text-sm">
+                <h2 className="font-semibold mb-2">Historia ruchów ({history.length})</h2>
+                <ol className="list-decimal pl-5 space-y-1 max-h-48 overflow-auto">
+                    {history.map((m, i) => (
+                        <li key={i}>
+                            ({m.from.x},{m.from.y}) → ({m.to.x},{m.to.y})
+                        </li>
+                    ))}
+                </ol>
             </div>
         </div>
     );
