@@ -1,0 +1,22 @@
+{
+    "name": "@paper-soccer/core",
+    "version": "1.0.0",
+    "description": "Core game engine for Paper Soccer",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsc --watch",
+        "clean": "rm -rf dist"
+    },
+    "keywords": [
+        "paper-soccer",
+        "game",
+        "engine"
+    ],
+    "author": "",
+    "license": "MIT",
+    "devDependencies": {
+        "typescript": "^5.9.3"
+    }
+}
