@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 
 // Paper Soccer (Piłka na kartce w kratkę)
 // Zasady zaimplementowane wg Twojego opisu:
@@ -350,11 +350,6 @@ export default function PaperSoccer() {
     const [H, setH] = useState<number>(DEFAULT_H);
     const [goal, setGoal] = useState<number>(DEFAULT_GOAL);
     const { edges, pos, current, extraTurn, winner, blockedLoser, validMoves, history, makeMove, undo, reset } = useBoardState(W, H, goal);
-
-    // Recompute if geometry changes – reset gry, żeby nie mieszać historii z innym rozmiarem
-    useEffect(() => {
-        // eslint-disable-next-line @typescript-eslint/no-empty-function
-    }, [W, H, goal]);
 
     const status = useMemo(() => {
         if (winner !== null) return `Gol! Wygrywa gracz ${winner === 0 ? "A" : "B"}`;

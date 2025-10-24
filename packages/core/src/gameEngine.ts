@@ -3,8 +3,7 @@ import {
   Move, 
   Player, 
   GameState, 
-  GameConfig, 
-  GameResult 
+  GameConfig 
 } from './types';
 import { 
   keyEdge, 

@@ -1,4 +1,4 @@
-import { Pos, GoalSide, GoalResult } from './types';
+import { Pos, GoalResult } from './types';
 
 // ======= Funkcje pomocnicze =======
 

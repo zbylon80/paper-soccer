@@ -57,19 +57,20 @@ class SoundManager {
 
     private async ensureContext(): Promise<AudioContext | null> {
         if (typeof window === "undefined") return null;
-        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-        if (!AudioCtx) return null;
-        if (!this.context) {
-            this.context = new AudioCtx();
-        }
-        if (this.context.state === "suspended") {
+        const audioWindow = window as Window &
+            typeof globalThis & { webkitAudioContext?: typeof AudioContext };
+        const AudioCtor = audioWindow.AudioContext ?? audioWindow.webkitAudioContext;
+        if (!AudioCtor) return null;
+        const context = this.context ?? new AudioCtor();
+        this.context = context;
+        if (context.state === "suspended") {
             try {
-                await this.context.resume();
+                await context.resume();
             } catch {
                 return null;
             }
         }
-        return this.context;
+        return context;
     }
 
     resume() {
@@ -1103,7 +1104,6 @@ export default function PaperSoccerSimple() {
     const [orientation, setOrientation] = useState<OrientationOption>("playerBottom");
     const stalemateAsDraw = false;
     const [pendingReset, setPendingReset] = useState(false);
-    const [logAiDecisions, setLogAiDecisions] = useState(false);
     const soundManager = useMemo(() => new SoundManager(), []);
     const [statusFlash, setStatusFlash] = useState<"goal" | "draw" | null>(null);
     const {
@@ -1273,7 +1273,6 @@ export default function PaperSoccerSimple() {
         if (!isComputerTurn) return;
 
         const delay = difficulty === "easy" ? 650 : difficulty === "hard" ? 320 : 450;
-        const shouldLog = logAiDecisions && mode === "computer";
 
         const timer = window.setTimeout(() => {
             const goalCenter = computeGoalCenter(config.height, config.goalWidth);
@@ -1284,7 +1283,7 @@ export default function PaperSoccerSimple() {
                     difficulty,
                     stalemateAsDraw,
                     goalCenter,
-                    log: shouldLog
+                    log: false
                 }
             );
             makeMove(decision.move);
@@ -1296,7 +1295,6 @@ export default function PaperSoccerSimple() {
         config,
         difficulty,
         stalemateAsDraw,
-        logAiDecisions,
         mode,
         pos,
         edges,
@@ -1348,7 +1346,10 @@ export default function PaperSoccerSimple() {
 
     return (
         <div className="w-full max-w-5xl mx-auto p-4 space-y-4 bg-emerald-900/40 border border-emerald-700/60 rounded-3xl shadow-xl backdrop-blur">
-            <h1 className="text-2xl font-bold">Piłka na kartce – prosta wersja</h1>
+            <div className="text-center">
+                <h1 className="text-2xl font-bold">Paper Soccer prototype</h1>
+                <p className="text-sm text-emerald-200/80">by Zbigniew Kalinowski</p>
+            </div>
 
             <div className="flex flex-col lg:flex-row gap-2 items-start lg:items-end">
                 <div className="flex flex-col gap-2 w-full">
@@ -1423,19 +1424,31 @@ export default function PaperSoccerSimple() {
                                 )}
                             </select>
                         </label>
-                        <label className={`flex items-center gap-2 ${aiControlsDisabled ? "text-gray-400" : ""}`}>
-                            <input
-                                type="checkbox"
-                                checked={logAiDecisions}
-                                onChange={() => setLogAiDecisions((prev) => !prev)}
-                                disabled={aiControlsDisabled}
-                            />
-                            Loguj decyzje AI w konsoli
-                        </label>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                        <button onClick={reset} className="border rounded-2xl px-3 py-2 shadow">Nowa gra</button>
+                    <div className="flex items-center gap-2 p-2">
+                        <button
+                            onClick={reset}
+                            className="rounded-2xl px-4 py-2 shadow font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-200 transition-colors"
+                            style={{
+                                backgroundColor: "#ef4444",
+                                color: "#ffffff",
+                            }}
+                            onMouseEnter={(event) => {
+                                event.currentTarget.style.backgroundColor = "#f87171";
+                            }}
+                            onMouseLeave={(event) => {
+                                event.currentTarget.style.backgroundColor = "#ef4444";
+                            }}
+                            onMouseDown={(event) => {
+                                event.currentTarget.style.backgroundColor = "#dc2626";
+                            }}
+                            onMouseUp={(event) => {
+                                event.currentTarget.style.backgroundColor = "#f87171";
+                            }}
+                        >
+                            Nowa gra
+                        </button>
                     </div>
                 </div>
             </div>
