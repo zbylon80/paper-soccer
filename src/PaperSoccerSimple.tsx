@@ -18,6 +18,8 @@ type GameState = {
 
 type DifficultyLevel = "easy" | "normal" | "hard";
 type BoardSizeOption = "small" | "medium" | "large";
+type OrientationOption = "playerBottom" | "playerTop";
+type GoalLabelDisplay = { text: string; color: string };
 
 function defaultGoalWidth(): number {
     return 2;
@@ -72,6 +74,27 @@ function createSimState(
         draw,
         validMoves
     };
+}
+
+type TranspositionEntry = { depth: number; value: number };
+
+function buildStateKey(state: SimState): string {
+    const edgesKey = Array.from(state.edges).sort().join(";");
+    const movesKey = state.validMoves
+        .map((m) => `${m.x},${m.y}`)
+        .sort()
+        .join(";");
+    return [
+        state.pos.x,
+        state.pos.y,
+        state.current,
+        state.extraTurn ? 1 : 0,
+        state.validMoves.length,
+        state.winner ?? "null",
+        state.draw ? 1 : 0,
+        movesKey,
+        edgesKey,
+    ].join("|");
 }
 
 function simulateMove(
@@ -136,17 +159,20 @@ function evaluateMove(
 
     let score = 0;
     const forwardProgress = (move.x - baseState.pos.x) * direction;
-    score += forwardProgress * 32;
+    score += forwardProgress * 42;
 
     const targetX = player === 1 ? config.width : 0;
     const distanceToTarget = Math.abs(targetX - move.x);
-    score -= distanceToTarget * 4.5;
+    score -= distanceToTarget * 6;
 
-    score -= Math.abs(goalCenter - move.y) * 6;
+    score -= Math.abs(goalCenter - move.y) * 9;
 
     const ownGoalX = player === 1 ? 0 : config.width;
     const distanceFromOwnGoal = Math.abs(move.x - ownGoalX);
-    score += distanceFromOwnGoal * 2.5;
+    score += distanceFromOwnGoal * 3.5;
+
+    const distanceFromWalls = Math.min(move.y, config.height - move.y);
+    score += distanceFromWalls * 4;
 
     if (player === 1 && move.x <= 1) score -= 45;
     if (player === 0 && move.x >= config.width - 1) score -= 45;
@@ -160,6 +186,16 @@ function evaluateMove(
             return goal?.side === targetSide;
         });
         if (followWin) score += 120;
+        const opponentCounter = computeValidMoves(
+            result.pos,
+            result.edges,
+            config.width,
+            config.height
+        ).filter((follow) => {
+            const goal = isGoal(follow, config.width, config.height, config.goalWidth);
+            return goal?.side === opponentSide;
+        }).length;
+        if (opponentCounter > 0) score -= opponentCounter * 90;
     } else {
         if (responseMoves.length === 0) {
             score += stalemateAsDraw ? 20 : 160;
@@ -169,7 +205,9 @@ function evaluateMove(
                 return goal?.side === opponentSide;
             });
             if (opponentGoal) score -= 160;
-            score -= responseMoves.length * 1.2;
+            score -= responseMoves.length * 2.4;
+            const trapped = responseMoves.every((follow) => incidentDegree(follow, result.edges, config.width, config.height) >= 4);
+            if (trapped) score += 55;
         }
     }
 
@@ -186,23 +224,57 @@ function evaluateState(
     }
     if (state.draw) return 0;
 
-    let score = (state.pos.x - config.width / 2) * 18;
-    score -= Math.abs(goalCenter - state.pos.y) * 5;
+    let score = (state.pos.x - config.width / 2) * 26;
+    score -= Math.abs(goalCenter - state.pos.y) * 9;
 
-    const mobility = state.validMoves.length > 0
-        ? state.validMoves.length
-        : computeValidMoves(state.pos, state.edges, config.width, config.height).length;
+    const aiProgress = state.pos.x;
+    const humanProgress = config.width - state.pos.x;
+    score += (aiProgress - humanProgress) * 4;
 
-    score += (state.current === 1 ? 1 : -1) * mobility * 2;
+    const edgeDistanceX = Math.min(state.pos.x, config.width - state.pos.x);
+    const edgeDistanceY = Math.min(state.pos.y, config.height - state.pos.y);
+    score += edgeDistanceX * 3.5;
+    score += edgeDistanceY * 2.5;
 
-    const immediateMoves = state.validMoves.length > 0 ? state.validMoves : computeValidMoves(state.pos, state.edges, config.width, config.height);
-    const aiImmediateGoal = immediateMoves.some((m) => isGoal(m, config.width, config.height, config.goalWidth)?.side === "RIGHT");
-    const humanImmediateGoal = immediateMoves.some((m) => isGoal(m, config.width, config.height, config.goalWidth)?.side === "LEFT");
+    const availableMoves = state.validMoves.length > 0
+        ? state.validMoves
+        : computeValidMoves(state.pos, state.edges, config.width, config.height);
+    const mobility = availableMoves.length;
+
+    score += (state.current === 1 ? 1 : -1) * mobility * 3.5;
+
+    const opponentMoves = computeValidMoves(state.pos, state.edges, config.width, config.height);
+    score -= opponentMoves.length * 1.6;
+
+    const aiImmediateGoal = availableMoves.some((m) => isGoal(m, config.width, config.height, config.goalWidth)?.side === "RIGHT");
+    const humanImmediateGoal = availableMoves.some((m) => isGoal(m, config.width, config.height, config.goalWidth)?.side === "LEFT");
+    const opponentImmediateGoal = opponentMoves.some((m) => isGoal(m, config.width, config.height, config.goalWidth)?.side === "LEFT");
 
     if (aiImmediateGoal) score += 200;
     if (humanImmediateGoal) score -= 220;
+    if (opponentImmediateGoal) score -= 260;
+
+    if (edgeDistanceX <= 1 || edgeDistanceY <= 1) score -= 45;
 
     return score;
+}
+
+function shouldExtendSearch(state: SimState, config: GameConfig): boolean {
+    if (state.extraTurn) return true;
+    if (state.winner !== null || state.draw) return false;
+
+    const moves = state.validMoves.length > 0
+        ? state.validMoves
+        : computeValidMoves(state.pos, state.edges, config.width, config.height);
+
+    if (moves.length <= 2) return true;
+
+    const goalThreat = moves.some((m) => isGoal(m, config.width, config.height, config.goalWidth));
+    if (goalThreat) return true;
+
+    const opponentMoves = computeValidMoves(state.pos, state.edges, config.width, config.height);
+    const opponentThreat = opponentMoves.some((m) => isGoal(m, config.width, config.height, config.goalWidth));
+    return opponentThreat;
 }
 
 function minimax(
@@ -212,10 +284,27 @@ function minimax(
     goalCenter: number,
     stalemateAsDraw: boolean,
     alpha: number,
-    beta: number
+    beta: number,
+    allowQuiescence = true,
+    cache?: Map<string, TranspositionEntry>
 ): number {
+    const key = cache ? buildStateKey(state) : null;
+    if (cache && key) {
+        const cached = cache.get(key);
+        if (cached && cached.depth >= depth) {
+            return cached.value;
+        }
+    }
+
     if (depth === 0 || state.winner !== null || state.draw) {
-        return evaluateState(state, config, goalCenter);
+        if (depth === 0 && allowQuiescence && shouldExtendSearch(state, config)) {
+            const extended = minimax(state, 1, config, goalCenter, stalemateAsDraw, alpha, beta, false, cache);
+            if (cache && key) cache.set(key, { depth, value: extended });
+            return extended;
+        }
+        const evaluation = evaluateState(state, config, goalCenter);
+        if (cache && key) cache.set(key, { depth, value: evaluation });
+        return evaluation;
     }
 
     const moves = state.validMoves.length > 0
@@ -231,21 +320,23 @@ function minimax(
         let value = -Infinity;
         for (const move of moves) {
             const next = simulateMove(state, move, config, stalemateAsDraw);
-            const evaluation = minimax(next, depth - 1, config, goalCenter, stalemateAsDraw, alpha, beta);
+            const evaluation = minimax(next, depth - 1, config, goalCenter, stalemateAsDraw, alpha, beta, allowQuiescence, cache);
             value = Math.max(value, evaluation);
             alpha = Math.max(alpha, value);
             if (alpha >= beta) break;
         }
+        if (cache && key) cache.set(key, { depth, value });
         return value;
     } else {
         let value = Infinity;
         for (const move of moves) {
             const next = simulateMove(state, move, config, stalemateAsDraw);
-            const evaluation = minimax(next, depth - 1, config, goalCenter, stalemateAsDraw, alpha, beta);
+            const evaluation = minimax(next, depth - 1, config, goalCenter, stalemateAsDraw, alpha, beta, allowQuiescence, cache);
             value = Math.min(value, evaluation);
             beta = Math.min(beta, value);
             if (beta <= alpha) break;
         }
+        if (cache && key) cache.set(key, { depth, value });
         return value;
     }
 }
@@ -264,47 +355,65 @@ function chooseComputerMove(
         evaluateMove(state, move, 1, config, options.goalCenter, options.stalemateAsDraw)
     );
 
-    let chosen: MoveAnalysis;
+    const transpositionTable = new Map<string, TranspositionEntry>();
+
+    const difficultySettings = {
+        easy: { searchDepth: 0, depthWeight: 0, candidateLimit: analyses.length, noiseFactor: 0.55 },
+        normal: { searchDepth: 2, depthWeight: 0.6, candidateLimit: Math.min(analyses.length, 8), noiseFactor: 0 },
+        hard: { searchDepth: 4, depthWeight: 0.75, candidateLimit: analyses.length, noiseFactor: 0 },
+    } as const;
+
+    const settings = difficultySettings[options.difficulty];
+
+    let chosen: MoveAnalysis | null = null;
+    let bestScore = -Infinity;
 
     if (options.difficulty === "easy") {
         const jittered = analyses.map((analysis) => ({
             ...analysis,
-            score: analysis.score * 0.5 + Math.random() * 120
+            score: analysis.score * settings.noiseFactor + Math.random() * 160,
         }));
         chosen = jittered.reduce((best, current) => (current.score > best.score ? current : best));
-    } else if (options.difficulty === "hard") {
-        const depth = 3;
-        let bestScore = -Infinity;
-        let bestAnalysis = analyses[0];
+    } else {
+        const ordered = analyses
+            .slice()
+            .sort((a, b) => b.score - a.score)
+            .slice(0, settings.candidateLimit);
 
-        for (const analysis of analyses) {
+        for (const analysis of ordered) {
             let totalScore = analysis.score;
-            if (analysis.nextState.winner === null && !analysis.nextState.draw) {
+            if (
+                settings.searchDepth > 0 &&
+                analysis.nextState.winner === null &&
+                !analysis.nextState.draw
+            ) {
                 const searchScore = minimax(
                     analysis.nextState,
-                    depth - 1,
+                    settings.searchDepth - 1,
                     config,
                     options.goalCenter,
                     options.stalemateAsDraw,
                     -Infinity,
-                    Infinity
+                    Infinity,
+                    true,
+                    transpositionTable
                 );
-                totalScore += searchScore * 0.6;
+                totalScore += searchScore * settings.depthWeight;
             }
-            if (totalScore > bestScore) {
+
+            if (totalScore > bestScore + 1e-3) {
                 bestScore = totalScore;
-                bestAnalysis = analysis;
-            } else if (totalScore === bestScore && Math.random() > 0.5) {
-                bestAnalysis = analysis;
+                chosen = analysis;
+            } else if (Math.abs(totalScore - bestScore) <= 1e-3 && chosen) {
+                if (analysis.score > chosen.score + 1e-3) {
+                    chosen = analysis;
+                }
             }
         }
-        chosen = bestAnalysis;
-    } else {
-        const scored = analyses.map((analysis) => ({
-            ...analysis,
-            score: analysis.score + Math.random() * 30
-        }));
-        chosen = scored.reduce((best, current) => (current.score > best.score ? current : best));
+    }
+
+    if (!chosen) {
+        chosen = analyses[0];
     }
 
     if (options.log && typeof window !== "undefined") {
@@ -601,7 +710,7 @@ function useSimpleGameEngine(config: GameConfig, options: { stalemateAsDraw: boo
 }
 
 // ======= Komponent =======
-const PADDING = 36;
+const PADDING = 24;
 const MAX_BOARD_SIZE = 720; // maksymalny rozmiar boiska w px
 
 function BoardSVG({
@@ -612,6 +721,9 @@ function BoardSVG({
     pos,
     validMoves,
     onChoose,
+    orientation,
+    topLabel,
+    bottomLabel,
 }: {
     W: number;
     H: number;
@@ -620,8 +732,10 @@ function BoardSVG({
     pos: Pos;
     validMoves: Pos[];
     onChoose: (p: Pos) => void;
+    orientation: OrientationOption;
+    topLabel: GoalLabelDisplay;
+    bottomLabel: GoalLabelDisplay;
 }) {
-    const gradientId = useMemo(() => `pitch-gradient-${W}-${H}`, [W, H]);
     const stripeId = useMemo(() => `pitch-stripe-${W}-${H}`, [W, H]);
     const goalPatternId = useMemo(() => `goal-net-${W}-${H}`, [W, H]);
 
@@ -640,7 +754,7 @@ function BoardSVG({
     // Minimalny rozmiar komórki
     cellSize = Math.max(cellSize, 20);
 
-    const goalDepth = Math.max(cellSize * 1.8, 52);
+    const goalDepth = Math.max(cellSize * 1.1, 32);
     const padX = PADDING + goalDepth;
     const padY = PADDING;
 
@@ -709,18 +823,32 @@ function BoardSVG({
     borderSegments.push(...buildVerticalRuns(0, ysGoal, "LEFT"));
     borderSegments.push(...buildVerticalRuns(W, ysGoal, "RIGHT"));
 
+    const shouldRotate = orientation === "playerBottom" || orientation === "playerTop";
+    const containerStyle = shouldRotate
+        ? { width: `${height}px`, height: `${width}px` }
+        : { width: `${width}px`, height: `${height}px` };
+    const svgTransformStyle = shouldRotate
+        ? {
+              transform:
+                  orientation === "playerBottom"
+                      ? `matrix(0,1,-1,0,${height},0)`
+                      : `matrix(0,-1,1,0,0,${width})`,
+              transformOrigin: "0 0",
+          }
+        : undefined;
+    const labelInset = Math.max(16, padY * 0.55);
+    const labelFontSize = Math.max(14, cellSize * 0.45);
+
     return (
         <div className="w-full flex justify-center items-center">
-            <svg
-                width={width}
-                height={height}
-                className="rounded-3xl shadow-2xl p-2 select-none ring-4 ring-emerald-900/60 bg-emerald-900/60"
-            >
+            <div style={containerStyle} className="relative">
+                <svg
+                    width={width}
+                    height={height}
+                    className="rounded-3xl shadow-2xl p-2 select-none ring-4 ring-emerald-900/60 bg-emerald-900/60"
+                    style={svgTransformStyle}
+                >
                 <defs>
-                    <linearGradient id={gradientId} x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" stopColor="#15803d" />
-                        <stop offset="100%" stopColor="#166534" />
-                    </linearGradient>
                     <pattern id={stripeId} patternUnits="userSpaceOnUse" width={cellSize * 2} height={cellSize * 2}>
                         <rect width={cellSize * 2} height={cellSize} fill="rgba(255,255,255,0.04)" />
                         <rect y={cellSize} width={cellSize * 2} height={cellSize} fill="rgba(0,0,0,0.05)" />
@@ -750,14 +878,14 @@ function BoardSVG({
                     width={width}
                     height={height}
                     rx={24}
-                    fill={`url(#${gradientId})`}
+                    fill="#166534"
                 />
                 <rect
-                    x={goalDepth / 2 + 12}
-                    y={12}
-                    width={width - (goalDepth + 24)}
-                    height={height - 24}
-                    rx={18}
+                    x={goalDepth / 2 + 10}
+                    y={8}
+                    width={width - (goalDepth + 20)}
+                    height={height - 16}
+                    rx={16}
                     fill={`url(#${stripeId})`}
                     opacity={0.5}
                 />
@@ -879,7 +1007,34 @@ function BoardSVG({
                     );
                 })}
             </svg>
+                <div
+                    className="absolute font-semibold uppercase tracking-wide text-center select-none pointer-events-none"
+                    style={{
+                        top: `${labelInset}px`,
+                        left: "50%",
+                        transform: "translateX(-50%)",
+                        color: topLabel.color,
+                        fontSize: `${labelFontSize}px`,
+                        whiteSpace: "nowrap",
+                    }}
+                >
+                    {topLabel.text}
+                </div>
+                <div
+                    className="absolute font-semibold uppercase tracking-wide text-center select-none pointer-events-none"
+                    style={{
+                        bottom: `${labelInset}px`,
+                        left: "50%",
+                        transform: "translateX(-50%)",
+                        color: bottomLabel.color,
+                        fontSize: `${labelFontSize}px`,
+                        whiteSpace: "nowrap",
+                    }}
+                >
+                    {bottomLabel.text}
+                </div>
         </div>
+    </div>
     );
 }
 
@@ -891,6 +1046,7 @@ export default function PaperSoccerSimple() {
     });
     const [mode, setMode] = useState<"human" | "computer">("computer");
     const [difficulty, setDifficulty] = useState<DifficultyLevel>("normal");
+    const [orientation, setOrientation] = useState<OrientationOption>("playerBottom");
     const stalemateAsDraw = false;
     const [pendingReset, setPendingReset] = useState(false);
     const [logAiDecisions, setLogAiDecisions] = useState(false);
@@ -915,16 +1071,51 @@ export default function PaperSoccerSimple() {
         setPendingReset(false);
     }, [pendingReset, reset]);
 
-    const goalInfo = useMemo(() => ({
-        left: {
-            label: mode === "computer" ? "Bramka komputera" : "Bramka gracza B",
-            color: "#dc2626",
-        },
-        right: {
-            label: mode === "computer" ? "Twoja bramka" : "Bramka gracza A",
-            color: "#2563eb",
-        },
-    }), [mode]);
+    const goalInfo = useMemo(() => {
+        const opponentLabel = mode === "computer" ? "Bramka komputera" : "Bramka gracza B";
+        const playerLabel = mode === "computer" ? "Twoja bramka" : "Bramka gracza A";
+
+        if (orientation === "playerBottom") {
+            return {
+                opponent: {
+                    label: opponentLabel,
+                    color: "#dc2626",
+                    arrow: "^" as const,
+                    arrowPlacement: "prefix" as const,
+                    positionLabel: "Górna bramka",
+                },
+                player: {
+                    label: playerLabel,
+                    color: "#2563eb",
+                    arrow: "v" as const,
+                    arrowPlacement: "suffix" as const,
+                    positionLabel: "Dolna bramka",
+                },
+            };
+        }
+
+        return {
+            opponent: {
+                label: opponentLabel,
+                color: "#dc2626",
+                arrow: "v" as const,
+                arrowPlacement: "suffix" as const,
+                positionLabel: "Dolna bramka",
+            },
+            player: {
+                label: playerLabel,
+                color: "#2563eb",
+                arrow: "^" as const,
+                arrowPlacement: "prefix" as const,
+                positionLabel: "Górna bramka",
+            },
+        };
+    }, [mode, orientation]);
+
+    const topGoal = orientation === "playerBottom" ? goalInfo.opponent : goalInfo.player;
+    const bottomGoal = orientation === "playerBottom" ? goalInfo.player : goalInfo.opponent;
+    const topLabelDisplay: GoalLabelDisplay = { text: topGoal.label, color: topGoal.color };
+    const bottomLabelDisplay: GoalLabelDisplay = { text: bottomGoal.label, color: bottomGoal.color };
 
     const status = useMemo(() => {
         if (draw) {
@@ -1039,31 +1230,42 @@ export default function PaperSoccerSimple() {
     const aiControlsDisabled = mode !== "computer";
 
     return (
-        <div className="w-full max-w-5xl mx-auto p-6 space-y-5 bg-emerald-900/40 border border-emerald-700/60 rounded-3xl shadow-xl backdrop-blur">
+        <div className="w-full max-w-5xl mx-auto p-4 space-y-4 bg-emerald-900/40 border border-emerald-700/60 rounded-3xl shadow-xl backdrop-blur">
             <h1 className="text-2xl font-bold">Piłka na kartce – prosta wersja</h1>
 
-            <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-end">
-                <div className="flex flex-col gap-3 w-full">
-                    <label className="flex flex-col text-sm">
-                        Rozmiar boiska
-                        <select
-                            value={boardSize}
-                            onChange={(e) => handleBoardSizeChange(e.target.value as BoardSizeOption)}
-                            className="border rounded px-2 py-1"
-                        >
-                            {Object.entries(BOARD_PRESETS).map(([key, preset]) => (
-                                <option key={key} value={key}>
-                                    {preset.label}
-                                </option>
-                            ))}
-                        </select>
-                    </label>
-                    <p className="text-xs text-gray-500">
+            <div className="flex flex-col lg:flex-row gap-2 items-start lg:items-end">
+                <div className="flex flex-col gap-2 w-full">
+                      <label className="flex flex-col text-sm">
+                          Rozmiar boiska
+                          <select
+                              value={boardSize}
+                              onChange={(e) => handleBoardSizeChange(e.target.value as BoardSizeOption)}
+                              className="border rounded px-2 py-1"
+                          >
+                              {Object.entries(BOARD_PRESETS).map(([key, preset]) => (
+                                  <option key={key} value={key}>
+                                      {preset.label}
+                                  </option>
+                              ))}
+                          </select>
+                      </label>
+                      <label className="flex flex-col text-sm">
+                          Układ bramek
+                          <select
+                              value={orientation}
+                              onChange={(e) => setOrientation(e.target.value as OrientationOption)}
+                              className="border rounded px-2 py-1"
+                          >
+                              <option value="playerBottom">Twoja bramka na dole</option>
+                              <option value="playerTop">Twoja bramka na górze</option>
+                          </select>
+                      </label>
+                      <p className="text-xs text-gray-500">
                         Wszystkie wymiary są parzyste, więc piłka zawsze zaczyna dokładnie na środku.
                     </p>
                 </div>
 
-                <div className="flex flex-col gap-4 w-full lg:w-auto lg:ml-auto">
+                <div className="flex flex-col gap-2 w-full lg:w-auto lg:ml-auto">
                     <div className="border rounded-2xl px-3 py-2 text-sm">
                         <span className="font-semibold block mb-1">Tryb gry</span>
                         <label className="flex items-center gap-2 mb-1">
@@ -1121,17 +1323,8 @@ export default function PaperSoccerSimple() {
                 </div>
             </div>
 
-            <div className="text-lg font-semibold px-4 py-3 rounded-2xl bg-white/10 text-emerald-50 shadow-inner">
+            <div className="text-lg font-semibold px-3 py-2 rounded-2xl bg-white/10 text-emerald-50 shadow-inner">
                 {status}
-            </div>
-
-            <div className="flex flex-wrap justify-between items-center gap-2 text-xs uppercase tracking-wide font-semibold px-2">
-                <span className="flex items-center gap-1" style={{ color: goalInfo.left.color }}>
-                    {"<-"} {goalInfo.left.label}
-                </span>
-                <span className="flex items-center gap-1" style={{ color: goalInfo.right.color }}>
-                    {goalInfo.right.label} {"->"}
-                </span>
             </div>
 
             <BoardSVG
@@ -1142,9 +1335,12 @@ export default function PaperSoccerSimple() {
                 pos={pos}
                 validMoves={validMoves}
                 onChoose={onChoose}
+                orientation={orientation}
+                topLabel={topLabelDisplay}
+                bottomLabel={bottomLabelDisplay}
             />
 
-            <div className="grid md:grid-cols-2 gap-4 text-sm">
+            <div className="grid md:grid-cols-2 gap-3 text-sm">
                 <div className="p-4 rounded-2xl border">
                     <h2 className="font-semibold mb-2">Parametry boiska</h2>
                     <ul className="list-disc pl-5 space-y-1">
@@ -1154,8 +1350,8 @@ export default function PaperSoccerSimple() {
                         <li>Poziom AI: {mode === "computer" ? difficultyLabels[difficulty] : "—"}</li>
                         <li>Zasada przy braku ruchów: przegrywa gracz bez ruchu</li>
                         <li>Logowanie decyzji AI: {mode === "computer" && logAiDecisions ? "włączone" : "wyłączone"}</li>
-                        <li>Lewa bramka: {goalInfo.left.label}</li>
-                        <li>Prawa bramka: {goalInfo.right.label}</li>
+                        <li>{goalInfo.opponent.positionLabel}: {goalInfo.opponent.label}</li>
+                        <li>{goalInfo.player.positionLabel}: {goalInfo.player.label}</li>
                         <li>Zakaz ruchu po brzegach, dozwolone odbicia od brzegu i linii.</li>
                     </ul>
                 </div>
