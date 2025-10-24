@@ -13,7 +13,314 @@ type GameState = {
     winner: Player | null;
     blockedLoser: Player | null;
     validMoves: Pos[];
+    draw: boolean;
 };
+
+type DifficultyLevel = "easy" | "normal" | "hard";
+type BoardSizeOption = "small" | "medium" | "large";
+
+function defaultGoalWidth(): number {
+    return 2;
+}
+
+const BOARD_PRESETS: Record<BoardSizeOption, { width: number; height: number; label: string }> = {
+    small: { width: 10, height: 8, label: "Małe (10 × 8)" },
+    medium: { width: 14, height: 10, label: "Średnie (14 × 10)" },
+    large: { width: 18, height: 12, label: "Duże (18 × 12)" },
+};
+
+type SimState = {
+    pos: Pos;
+    edges: Set<string>;
+    current: Player;
+    extraTurn: boolean;
+    winner: Player | null;
+    draw: boolean;
+    validMoves: Pos[];
+};
+
+type MoveAnalysis = {
+    move: Pos;
+    score: number;
+    nextState: SimState;
+};
+
+const WIN_SCORE = 100000;
+const LOSS_SCORE = -WIN_SCORE;
+
+function computeGoalCenter(height: number, goalWidth: number): number {
+    const ys = goalYRange(height, goalWidth);
+    if (ys.length === 0) return height / 2;
+    return ys.reduce((sum, value) => sum + value, 0) / ys.length;
+}
+
+function createSimState(
+    pos: Pos,
+    edges: Set<string>,
+    current: Player,
+    extraTurn: boolean,
+    validMoves: Pos[],
+    winner: Player | null = null,
+    draw = false
+): SimState {
+    return {
+        pos,
+        edges,
+        current,
+        extraTurn,
+        winner,
+        draw,
+        validMoves
+    };
+}
+
+function simulateMove(
+    state: SimState,
+    move: Pos,
+    config: GameConfig,
+    stalemateAsDraw: boolean
+): SimState {
+    const bounce = willBounce(move, state.edges, config.width, config.height);
+    const newEdges = new Set(state.edges);
+    newEdges.add(keyEdge(state.pos, move));
+
+    const goal = isGoal(move, config.width, config.height, config.goalWidth);
+    if (goal) {
+        const scoringPlayer: Player = goal.side === "LEFT" ? 0 : 1;
+        return createSimState(move, newEdges, state.current, false, [], scoringPlayer, false);
+    }
+
+    let nextCurrent = state.current;
+    let nextExtraTurn = false;
+    if (bounce) {
+        nextExtraTurn = true;
+    } else {
+        nextCurrent = (state.current ^ 1) as Player;
+    }
+
+    const nextValidMoves = computeValidMoves(move, newEdges, config.width, config.height);
+    if (nextValidMoves.length === 0) {
+        if (stalemateAsDraw) {
+            return createSimState(move, newEdges, nextCurrent, false, [], null, true);
+        }
+        const winner: Player = (nextCurrent ^ 1) as Player;
+        return createSimState(move, newEdges, nextCurrent, false, [], winner, false);
+    }
+
+    return createSimState(move, newEdges, nextCurrent, nextExtraTurn, nextValidMoves, null, false);
+}
+
+function evaluateMove(
+    baseState: SimState,
+    move: Pos,
+    player: Player,
+    config: GameConfig,
+    goalCenter: number,
+    stalemateAsDraw: boolean
+): MoveAnalysis {
+    const result = simulateMove(baseState, move, config, stalemateAsDraw);
+
+    const targetSide = player === 1 ? "RIGHT" : "LEFT";
+    const opponentSide = player === 1 ? "LEFT" : "RIGHT";
+    const direction = player === 1 ? 1 : -1;
+
+    if (result.winner !== null) {
+        const score = result.winner === player ? WIN_SCORE : LOSS_SCORE;
+        return { move, score, nextState: result };
+    }
+
+    if (result.draw) {
+        const drawScore = stalemateAsDraw ? -200 : -400;
+        return { move, score: drawScore, nextState: result };
+    }
+
+    let score = 0;
+    const forwardProgress = (move.x - baseState.pos.x) * direction;
+    score += forwardProgress * 32;
+
+    const targetX = player === 1 ? config.width : 0;
+    const distanceToTarget = Math.abs(targetX - move.x);
+    score -= distanceToTarget * 4.5;
+
+    score -= Math.abs(goalCenter - move.y) * 6;
+
+    const ownGoalX = player === 1 ? 0 : config.width;
+    const distanceFromOwnGoal = Math.abs(move.x - ownGoalX);
+    score += distanceFromOwnGoal * 2.5;
+
+    if (player === 1 && move.x <= 1) score -= 45;
+    if (player === 0 && move.x >= config.width - 1) score -= 45;
+
+    const responseMoves = result.validMoves;
+    if (result.extraTurn) {
+        score += 18;
+        score += responseMoves.length * 1.8;
+        const followWin = responseMoves.some((follow) => {
+            const goal = isGoal(follow, config.width, config.height, config.goalWidth);
+            return goal?.side === targetSide;
+        });
+        if (followWin) score += 120;
+    } else {
+        if (responseMoves.length === 0) {
+            score += stalemateAsDraw ? 20 : 160;
+        } else {
+            const opponentGoal = responseMoves.some((follow) => {
+                const goal = isGoal(follow, config.width, config.height, config.goalWidth);
+                return goal?.side === opponentSide;
+            });
+            if (opponentGoal) score -= 160;
+            score -= responseMoves.length * 1.2;
+        }
+    }
+
+    return { move, score, nextState: result };
+}
+
+function evaluateState(
+    state: SimState,
+    config: GameConfig,
+    goalCenter: number
+): number {
+    if (state.winner !== null) {
+        return state.winner === 1 ? WIN_SCORE : LOSS_SCORE;
+    }
+    if (state.draw) return 0;
+
+    let score = (state.pos.x - config.width / 2) * 18;
+    score -= Math.abs(goalCenter - state.pos.y) * 5;
+
+    const mobility = state.validMoves.length > 0
+        ? state.validMoves.length
+        : computeValidMoves(state.pos, state.edges, config.width, config.height).length;
+
+    score += (state.current === 1 ? 1 : -1) * mobility * 2;
+
+    const immediateMoves = state.validMoves.length > 0 ? state.validMoves : computeValidMoves(state.pos, state.edges, config.width, config.height);
+    const aiImmediateGoal = immediateMoves.some((m) => isGoal(m, config.width, config.height, config.goalWidth)?.side === "RIGHT");
+    const humanImmediateGoal = immediateMoves.some((m) => isGoal(m, config.width, config.height, config.goalWidth)?.side === "LEFT");
+
+    if (aiImmediateGoal) score += 200;
+    if (humanImmediateGoal) score -= 220;
+
+    return score;
+}
+
+function minimax(
+    state: SimState,
+    depth: number,
+    config: GameConfig,
+    goalCenter: number,
+    stalemateAsDraw: boolean,
+    alpha: number,
+    beta: number
+): number {
+    if (depth === 0 || state.winner !== null || state.draw) {
+        return evaluateState(state, config, goalCenter);
+    }
+
+    const moves = state.validMoves.length > 0
+        ? state.validMoves
+        : computeValidMoves(state.pos, state.edges, config.width, config.height);
+
+    if (moves.length === 0) {
+        if (stalemateAsDraw) return 0;
+        return state.current === 1 ? LOSS_SCORE : WIN_SCORE;
+    }
+
+    if (state.current === 1) {
+        let value = -Infinity;
+        for (const move of moves) {
+            const next = simulateMove(state, move, config, stalemateAsDraw);
+            const evaluation = minimax(next, depth - 1, config, goalCenter, stalemateAsDraw, alpha, beta);
+            value = Math.max(value, evaluation);
+            alpha = Math.max(alpha, value);
+            if (alpha >= beta) break;
+        }
+        return value;
+    } else {
+        let value = Infinity;
+        for (const move of moves) {
+            const next = simulateMove(state, move, config, stalemateAsDraw);
+            const evaluation = minimax(next, depth - 1, config, goalCenter, stalemateAsDraw, alpha, beta);
+            value = Math.min(value, evaluation);
+            beta = Math.min(beta, value);
+            if (beta <= alpha) break;
+        }
+        return value;
+    }
+}
+
+function chooseComputerMove(
+    state: SimState,
+    config: GameConfig,
+    options: {
+        difficulty: DifficultyLevel;
+        stalemateAsDraw: boolean;
+        goalCenter: number;
+        log: boolean;
+    }
+): MoveAnalysis {
+    const analyses = state.validMoves.map((move) =>
+        evaluateMove(state, move, 1, config, options.goalCenter, options.stalemateAsDraw)
+    );
+
+    let chosen: MoveAnalysis;
+
+    if (options.difficulty === "easy") {
+        const jittered = analyses.map((analysis) => ({
+            ...analysis,
+            score: analysis.score * 0.5 + Math.random() * 120
+        }));
+        chosen = jittered.reduce((best, current) => (current.score > best.score ? current : best));
+    } else if (options.difficulty === "hard") {
+        const depth = 3;
+        let bestScore = -Infinity;
+        let bestAnalysis = analyses[0];
+
+        for (const analysis of analyses) {
+            let totalScore = analysis.score;
+            if (analysis.nextState.winner === null && !analysis.nextState.draw) {
+                const searchScore = minimax(
+                    analysis.nextState,
+                    depth - 1,
+                    config,
+                    options.goalCenter,
+                    options.stalemateAsDraw,
+                    -Infinity,
+                    Infinity
+                );
+                totalScore += searchScore * 0.6;
+            }
+            if (totalScore > bestScore) {
+                bestScore = totalScore;
+                bestAnalysis = analysis;
+            } else if (totalScore === bestScore && Math.random() > 0.5) {
+                bestAnalysis = analysis;
+            }
+        }
+        chosen = bestAnalysis;
+    } else {
+        const scored = analyses.map((analysis) => ({
+            ...analysis,
+            score: analysis.score + Math.random() * 30
+        }));
+        chosen = scored.reduce((best, current) => (current.score > best.score ? current : best));
+    }
+
+    if (options.log && typeof window !== "undefined") {
+        console.groupCollapsed(`[AI] tryb: ${options.difficulty}`);
+        analyses
+            .slice()
+            .sort((a, b) => b.score - a.score)
+            .forEach((analysis) => {
+                console.log("ruch", analysis.move, "ocena:", analysis.score);
+            });
+        console.log("wybór:", chosen.move, "ocena:", chosen.score);
+        console.groupEnd();
+    }
+
+    return chosen;
+}
 
 // ======= Funkcje pomocnicze (skopiowane z core) =======
 function keyEdge(a: Pos, b: Pos): string {
@@ -106,7 +413,7 @@ function computeValidMoves(pos: Pos, edges: Set<string>, width: number, height: 
 }
 
 // ======= Prosty silnik gry =======
-function useSimpleGameEngine(config: GameConfig) {
+function useSimpleGameEngine(config: GameConfig, options: { stalemateAsDraw: boolean }) {
     const [history, setHistory] = useState<Move[]>([]);
     const [state, setState] = useState<GameState>(() => {
         const pos = centerPosition(config.width, config.height);
@@ -119,12 +426,13 @@ function useSimpleGameEngine(config: GameConfig) {
             extraTurn: false,
             winner: null,
             blockedLoser: null,
-            validMoves
+            validMoves,
+            draw: false
         };
     });
 
     const makeMove = (to: Pos) => {
-        if (state.winner !== null) return;
+        if (state.winner !== null || state.draw) return;
 
         const from = state.pos;
         const move: Move = { from, to };
@@ -147,14 +455,17 @@ function useSimpleGameEngine(config: GameConfig) {
         // Sprawdź gol
         const goal = isGoal(newPos, config.width, config.height, config.goalWidth);
         if (goal) {
+            const scoringPlayer: Player = goal.side === "LEFT" ? 0 : 1;
+
             setState({
                 edges: newEdges,
                 pos: newPos,
                 current: state.current,
                 extraTurn: false,
-                winner: state.current,
+                winner: scoringPlayer,
                 blockedLoser: null,
-                validMoves: []
+                validMoves: [],
+                draw: false
             });
             setHistory(newHistory);
             return;
@@ -173,10 +484,32 @@ function useSimpleGameEngine(config: GameConfig) {
         // Sprawdź dostępne ruchy
         const newValidMoves = computeValidMoves(newPos, newEdges, config.width, config.height);
 
-        // Sprawdź blokadę
-        let newBlockedLoser: Player | null = null;
         if (newValidMoves.length === 0) {
-            newBlockedLoser = newCurrent;
+            if (options.stalemateAsDraw) {
+                setState({
+                    edges: newEdges,
+                    pos: newPos,
+                    current: newCurrent,
+                    extraTurn: false,
+                    winner: null,
+                    blockedLoser: null,
+                    validMoves: [],
+                    draw: true
+                });
+            } else {
+                setState({
+                    edges: newEdges,
+                    pos: newPos,
+                    current: newCurrent,
+                    extraTurn: false,
+                    winner: null,
+                    blockedLoser: newCurrent,
+                    validMoves: [],
+                    draw: false
+                });
+            }
+            setHistory(newHistory);
+            return;
         }
 
         setState({
@@ -185,8 +518,9 @@ function useSimpleGameEngine(config: GameConfig) {
             current: newCurrent,
             extraTurn: newExtraTurn,
             winner: null,
-            blockedLoser: newBlockedLoser,
-            validMoves: newValidMoves
+            blockedLoser: null,
+            validMoves: newValidMoves,
+            draw: false
         });
         setHistory(newHistory);
     };
@@ -219,8 +553,13 @@ function useSimpleGameEngine(config: GameConfig) {
 
         const validMoves = computeValidMoves(pos, edges, config.width, config.height);
         let blockedLoser: Player | null = null;
+        let draw = false;
         if (validMoves.length === 0) {
-            blockedLoser = current;
+            if (options.stalemateAsDraw) {
+                draw = true;
+            } else {
+                blockedLoser = current;
+            }
         }
 
         setState({
@@ -230,7 +569,8 @@ function useSimpleGameEngine(config: GameConfig) {
             extraTurn,
             winner: null,
             blockedLoser,
-            validMoves
+            validMoves,
+            draw
         });
     };
 
@@ -246,7 +586,8 @@ function useSimpleGameEngine(config: GameConfig) {
             extraTurn: false,
             winner: null,
             blockedLoser: null,
-            validMoves
+            validMoves,
+            draw: false
         });
     };
 
@@ -260,8 +601,8 @@ function useSimpleGameEngine(config: GameConfig) {
 }
 
 // ======= Komponent =======
-const PADDING = 24;
-const MAX_BOARD_SIZE = 600; // maksymalny rozmiar boiska w px
+const PADDING = 36;
+const MAX_BOARD_SIZE = 720; // maksymalny rozmiar boiska w px
 
 function BoardSVG({
     W,
@@ -280,6 +621,10 @@ function BoardSVG({
     validMoves: Pos[];
     onChoose: (p: Pos) => void;
 }) {
+    const gradientId = useMemo(() => `pitch-gradient-${W}-${H}`, [W, H]);
+    const stripeId = useMemo(() => `pitch-stripe-${W}-${H}`, [W, H]);
+    const goalPatternId = useMemo(() => `goal-net-${W}-${H}`, [W, H]);
+
     // Oblicz rozmiar komórki na podstawie proporcji boiska
     const aspectRatio = W / H;
     let cellSize: number;
@@ -295,12 +640,16 @@ function BoardSVG({
     // Minimalny rozmiar komórki
     cellSize = Math.max(cellSize, 20);
 
-    const width = W * cellSize + 2 * PADDING;
-    const height = H * cellSize + 2 * PADDING;
+    const goalDepth = Math.max(cellSize * 1.8, 52);
+    const padX = PADDING + goalDepth;
+    const padY = PADDING;
+
+    const width = W * cellSize + padX * 2;
+    const height = H * cellSize + padY * 2;
 
     const toXY = (p: Pos) => ({
-        cx: PADDING + p.x * cellSize,
-        cy: PADDING + p.y * cellSize,
+        cx: padX + p.x * cellSize,
+        cy: padY + p.y * cellSize,
     });
 
     const parseKey = (k: string): [Pos, Pos] => {
@@ -327,11 +676,11 @@ function BoardSVG({
 
     const ysGoal = goalYRange(H, goal);
 
-    const borderSegments: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
+    const borderSegments: Array<{ x1: number; y1: number; x2: number; y2: number; side?: "LEFT" | "RIGHT" }> = [];
     borderSegments.push({ x1: 0, y1: 0, x2: W, y2: 0 });
     borderSegments.push({ x1: 0, y1: H, x2: W, y2: H });
 
-    function buildVerticalRuns(x: number, goalYs: number[]) {
+    function buildVerticalRuns(x: number, goalYs: number[], side: "LEFT" | "RIGHT") {
         const runs: Array<{ y1: number; y2: number }> = [];
         let runStart: number | null = null;
 
@@ -355,19 +704,112 @@ function BoardSVG({
             runs.push({ y1: runStart, y2: H });
         }
 
-        return runs.map((r) => ({ x1: x, y1: r.y1, x2: x, y2: r.y2 }));
+        return runs.map((r) => ({ x1: x, y1: r.y1, x2: x, y2: r.y2, side }));
     }
-    borderSegments.push(...buildVerticalRuns(0, ysGoal));
-    borderSegments.push(...buildVerticalRuns(W, ysGoal));
+    borderSegments.push(...buildVerticalRuns(0, ysGoal, "LEFT"));
+    borderSegments.push(...buildVerticalRuns(W, ysGoal, "RIGHT"));
 
     return (
-        <div className="w-full flex justify-center">
-            <svg width={width} height={height} className="bg-white rounded-2xl shadow p-1 select-none">
+        <div className="w-full flex justify-center items-center">
+            <svg
+                width={width}
+                height={height}
+                className="rounded-3xl shadow-2xl p-2 select-none ring-4 ring-emerald-900/60 bg-emerald-900/60"
+            >
+                <defs>
+                    <linearGradient id={gradientId} x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stopColor="#15803d" />
+                        <stop offset="100%" stopColor="#166534" />
+                    </linearGradient>
+                    <pattern id={stripeId} patternUnits="userSpaceOnUse" width={cellSize * 2} height={cellSize * 2}>
+                        <rect width={cellSize * 2} height={cellSize} fill="rgba(255,255,255,0.04)" />
+                        <rect y={cellSize} width={cellSize * 2} height={cellSize} fill="rgba(0,0,0,0.05)" />
+                    </pattern>
+                    <pattern
+                        id={goalPatternId}
+                        patternUnits="userSpaceOnUse"
+                        width={Math.max(8, cellSize / 1.8)}
+                        height={Math.max(8, cellSize / 1.8)}
+                    >
+                        <path
+                            d={`M0 0 L${Math.max(8, cellSize / 1.8)} ${Math.max(8, cellSize / 1.8)}`}
+                            stroke="rgba(255,255,255,0.45)"
+                            strokeWidth={Math.max(0.8, cellSize / 18)}
+                        />
+                        <path
+                            d={`M${Math.max(8, cellSize / 1.8)} 0 L0 ${Math.max(8, cellSize / 1.8)}`}
+                            stroke="rgba(255,255,255,0.45)"
+                            strokeWidth={Math.max(0.8, cellSize / 18)}
+                        />
+                    </pattern>
+                </defs>
+
+                <rect
+                    x={0}
+                    y={0}
+                    width={width}
+                    height={height}
+                    rx={24}
+                    fill={`url(#${gradientId})`}
+                />
+                <rect
+                    x={goalDepth / 2 + 12}
+                    y={12}
+                    width={width - (goalDepth + 24)}
+                    height={height - 24}
+                    rx={18}
+                    fill={`url(#${stripeId})`}
+                    opacity={0.5}
+                />
+
+                {/* Bramki usunięte na życzenie */}
+
+                {/* Linia środkowa */}
+                {(() => {
+                    const midX = padX + (W / 2) * cellSize;
+                    return (
+                        <line
+                            x1={midX}
+                            y1={padY}
+                            x2={midX}
+                            y2={height - padY}
+                            stroke="rgba(255,255,255,0.55)"
+                            strokeWidth={Math.max(2, cellSize / 16)}
+                            strokeDasharray={`${cellSize / 2}`}
+                        />
+                    );
+                })()}
+
+                {/* Koło środkowe */}
+                {(() => {
+                    const centerX = padX + (W / 2) * cellSize;
+                    const centerY = padY + (H / 2) * cellSize;
+                    const radius = Math.max(cellSize * 1.2, 32);
+                    return (
+                        <circle
+                            cx={centerX}
+                            cy={centerY}
+                            r={radius}
+                            fill="none"
+                            stroke="rgba(255,255,255,0.4)"
+                            strokeWidth={Math.max(2, cellSize / 20)}
+                        />
+                    );
+                })()}
+
                 {/* Siatka punktów */}
                 {Array.from({ length: H + 1 }, (_, y) => (
                     Array.from({ length: W + 1 }, (_, x) => {
                         const { cx, cy } = toXY({ x, y });
-                        return <circle key={`pt-${x}-${y}`} cx={cx} cy={cy} r={Math.max(2, cellSize / 16)} />;
+                        return (
+                            <circle
+                                key={`pt-${x}-${y}`}
+                                cx={cx}
+                                cy={cy}
+                                r={Math.max(2, cellSize / 16)}
+                                fill="rgba(255,255,255,0.18)"
+                            />
+                        );
                     })
                 ))}
 
@@ -382,10 +824,10 @@ function BoardSVG({
                             y1={a.cy}
                             x2={b.cx}
                             y2={b.cy}
-                            strokeWidth={Math.max(2, cellSize / 16)}
-                            strokeOpacity={0.8}
+                            strokeWidth={Math.max(2.5, cellSize / 15)}
+                            strokeOpacity={0.95}
                             strokeDasharray=""
-                            stroke="currentColor"
+                            stroke="rgba(255,255,255,0.92)"
                         />
                     );
                 })}
@@ -403,7 +845,7 @@ function BoardSVG({
                             x2={p2.cx}
                             y2={p2.cy}
                             strokeWidth={Math.max(3, cellSize / 10)}
-                            stroke="black"
+                            stroke="#f1f5f9"
                             strokeLinecap="round"
                         />
                     );
@@ -427,12 +869,12 @@ function BoardSVG({
                 {/* Podświetlenie możliwych ruchów */}
                 {validMoves.map((p, i) => {
                     const { cx, cy } = toXY(p);
-                    const highlightRadius = Math.max(8, cellSize / 5);
-                    const dotRadius = Math.max(3, cellSize / 12);
+                    const highlightRadius = Math.max(10, cellSize / 4);
+                    const dotRadius = Math.max(4, cellSize / 10);
                     return (
                         <g key={`mv-${i}`} onClick={() => onChoose(p)} className="cursor-pointer">
-                            <circle cx={cx} cy={cy} r={highlightRadius} fill="rgba(0,0,0,0.06)" />
-                            <circle cx={cx} cy={cy} r={dotRadius} fill="rgba(0,0,0,0.7)" />
+                            <circle cx={cx} cy={cy} r={highlightRadius} fill="rgba(251, 191, 36, 0.35)" />
+                            <circle cx={cx} cy={cy} r={dotRadius} fill="#f97316" />
                         </g>
                     );
                 })}
@@ -442,7 +884,16 @@ function BoardSVG({
 }
 
 export default function PaperSoccerSimple() {
-    const [config, setConfig] = useState<GameConfig>({ width: 10, height: 8, goalWidth: 2 });
+    const [boardSize, setBoardSize] = useState<BoardSizeOption>("small");
+    const [config, setConfig] = useState<GameConfig>(() => {
+        const preset = BOARD_PRESETS.small;
+        return { width: preset.width, height: preset.height, goalWidth: defaultGoalWidth() };
+    });
+    const [mode, setMode] = useState<"human" | "computer">("computer");
+    const [difficulty, setDifficulty] = useState<DifficultyLevel>("normal");
+    const stalemateAsDraw = false;
+    const [pendingReset, setPendingReset] = useState(false);
+    const [logAiDecisions, setLogAiDecisions] = useState(false);
     const {
         edges,
         pos,
@@ -452,85 +903,236 @@ export default function PaperSoccerSimple() {
         blockedLoser,
         validMoves,
         history,
+        draw,
         makeMove,
         undo,
         reset
-    } = useSimpleGameEngine(config);
+    } = useSimpleGameEngine(config, { stalemateAsDraw });
+
+    useEffect(() => {
+        if (!pendingReset) return;
+        reset();
+        setPendingReset(false);
+    }, [pendingReset, reset]);
+
+    const goalInfo = useMemo(() => ({
+        left: {
+            label: mode === "computer" ? "Bramka komputera" : "Bramka gracza B",
+            color: "#dc2626",
+        },
+        right: {
+            label: mode === "computer" ? "Twoja bramka" : "Bramka gracza A",
+            color: "#2563eb",
+        },
+    }), [mode]);
 
     const status = useMemo(() => {
-        if (winner !== null) return `Gol! Wygrywa gracz ${winner === 0 ? "A" : "B"}`;
-        if (blockedLoser !== null) return `Brak ruchów – przegrywa gracz ${blockedLoser === 0 ? "A" : "B"}`;
-        return `Tura: gracz ${current === 0 ? "A" : "B"}` + (extraTurn ? " (odbicie – dodatkowy ruch)" : "");
-    }, [winner, blockedLoser, current, extraTurn]);
+        if (draw) {
+            return mode === "computer"
+                ? "Remis – żadna ze stron nie może wykonać ruchu."
+                : "Remis – brak możliwych ruchów.";
+        }
+        if (winner !== null) {
+            if (mode === "computer") {
+                return winner === 0 ? "Gol! Wygrywasz!" : "Gol! Komputer wygrywa.";
+            }
+            return `Gol! Wygrywa gracz ${winner === 0 ? "A" : "B"}`;
+        }
+        if (blockedLoser !== null) {
+            if (mode === "computer") {
+                return blockedLoser === 0 ? "Brak ruchów – komputer zwycięża." : "Brak ruchów – komputer przegrywa!";
+            }
+            return `Brak ruchów – przegrywa gracz ${blockedLoser === 0 ? "A" : "B"}`;
+        }
+        const base =
+            mode === "computer"
+                ? current === 0
+                    ? "Twoja tura"
+                    : "Tura: komputer"
+                : `Tura: gracz ${current === 0 ? "A" : "B"}`;
+        return base + (extraTurn ? " (odbicie – dodatkowy ruch)" : "");
+    }, [draw, mode, winner, blockedLoser, current, extraTurn]);
+
+    const isComputerTurn =
+        mode === "computer" &&
+        winner === null &&
+        blockedLoser === null &&
+        !draw &&
+        current === 1 &&
+        validMoves.length > 0;
+
+    useEffect(() => {
+        if (!isComputerTurn) return;
+
+        const delay = difficulty === "easy" ? 650 : difficulty === "hard" ? 320 : 450;
+        const shouldLog = logAiDecisions && mode === "computer";
+
+        const timer = window.setTimeout(() => {
+            const goalCenter = computeGoalCenter(config.height, config.goalWidth);
+            const decision = chooseComputerMove(
+                createSimState(pos, edges, current, extraTurn, validMoves, winner, draw),
+                config,
+                {
+                    difficulty,
+                    stalemateAsDraw,
+                    goalCenter,
+                    log: shouldLog
+                }
+            );
+            makeMove(decision.move);
+        }, delay);
+
+        return () => window.clearTimeout(timer);
+    }, [
+        isComputerTurn,
+        config,
+        difficulty,
+        stalemateAsDraw,
+        logAiDecisions,
+        mode,
+        pos,
+        edges,
+        current,
+        extraTurn,
+        validMoves,
+        winner,
+        draw,
+        makeMove
+    ]);
 
     const onChoose = (p: Pos) => {
+        if (winner !== null || draw) return;
+        if (mode === "computer" && current === 1) return;
         makeMove(p);
     };
 
-    const restartWithGeometry = () => {
+    const handleModeChange = (value: "human" | "computer") => {
+        if (value === mode) return;
+        setMode(value);
         reset();
     };
 
+    const handleBoardSizeChange = (value: BoardSizeOption) => {
+        if (value === boardSize) return;
+        const preset = BOARD_PRESETS[value];
+        setBoardSize(value);
+        setConfig({
+            width: preset.width,
+            height: preset.height,
+            goalWidth: defaultGoalWidth()
+        });
+        setPendingReset(true);
+    };
+
+    const handleDifficultyChange = (value: DifficultyLevel) => {
+        if (value === difficulty) return;
+        setDifficulty(value);
+        if (mode === "computer") reset();
+    };
+
+    const difficultyLabels: Record<DifficultyLevel, string> = {
+        easy: "łatwy",
+        normal: "standard",
+        hard: "trudny"
+    };
+
+    const aiControlsDisabled = mode !== "computer";
+
     return (
-        <div className="w-full max-w-5xl mx-auto p-6 space-y-4">
+        <div className="w-full max-w-5xl mx-auto p-6 space-y-5 bg-emerald-900/40 border border-emerald-700/60 rounded-3xl shadow-xl backdrop-blur">
             <h1 className="text-2xl font-bold">Piłka na kartce – prosta wersja</h1>
 
-            <div className="flex flex-col md:flex-row gap-4 items-start md:items-end">
-                <div className="grid grid-cols-3 gap-3">
-                    <label className="flex flex-col text-sm">Szerokość (W)
-                        <input
-                            type="number"
-                            min={6}
-                            max={30}
-                            value={config.width}
-                            onChange={(e) => setConfig(prev => ({
-                                ...prev,
-                                width: Math.max(6, Math.min(30, Number(e.target.value) || 10))
-                            }))}
+            <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-end">
+                <div className="flex flex-col gap-3 w-full">
+                    <label className="flex flex-col text-sm">
+                        Rozmiar boiska
+                        <select
+                            value={boardSize}
+                            onChange={(e) => handleBoardSizeChange(e.target.value as BoardSizeOption)}
                             className="border rounded px-2 py-1"
-                        />
+                        >
+                            {Object.entries(BOARD_PRESETS).map(([key, preset]) => (
+                                <option key={key} value={key}>
+                                    {preset.label}
+                                </option>
+                            ))}
+                        </select>
                     </label>
-                    <label className="flex flex-col text-sm">Wysokość (H)
-                        <input
-                            type="number"
-                            min={6}
-                            max={30}
-                            value={config.height}
-                            onChange={(e) => setConfig(prev => ({
-                                ...prev,
-                                height: Math.max(6, Math.min(30, Number(e.target.value) || 8))
-                            }))}
-                            className="border rounded px-2 py-1"
-                        />
-                    </label>
-                    <label className="flex flex-col text-sm">Szer. bramki
-                        <input
-                            type="number"
-                            min={1}
-                            max={Math.max(1, Math.floor(config.height / 2))}
-                            value={config.goalWidth}
-                            onChange={(e) => setConfig(prev => ({
-                                ...prev,
-                                goalWidth: Math.max(1, Math.min(Math.floor(prev.height / 2), Number(e.target.value) || 2))
-                            }))}
-                            className="border rounded px-2 py-1"
-                        />
-                    </label>
-                    <button
-                        onClick={restartWithGeometry}
-                        className="col-span-3 bg-black text-white rounded-2xl px-3 py-2 shadow"
-                    >
-                        Zastosuj i zresetuj
-                    </button>
+                    <p className="text-xs text-gray-500">
+                        Wszystkie wymiary są parzyste, więc piłka zawsze zaczyna dokładnie na środku.
+                    </p>
                 </div>
 
-                <div className="flex items-center gap-2 ml-auto">
-                    <button onClick={undo} className="border rounded-2xl px-3 py-2 shadow">Cofnij ruch</button>
-                    <button onClick={reset} className="border rounded-2xl px-3 py-2 shadow">Nowa gra</button>
+                <div className="flex flex-col gap-4 w-full lg:w-auto lg:ml-auto">
+                    <div className="border rounded-2xl px-3 py-2 text-sm">
+                        <span className="font-semibold block mb-1">Tryb gry</span>
+                        <label className="flex items-center gap-2 mb-1">
+                            <input
+                                type="radio"
+                                name="game-mode"
+                                value="human"
+                                checked={mode === "human"}
+                                onChange={() => handleModeChange("human")}
+                            />
+                            Dwóch graczy
+                        </label>
+                        <label className="flex items-center gap-2">
+                            <input
+                                type="radio"
+                                name="game-mode"
+                                value="computer"
+                                checked={mode === "computer"}
+                                onChange={() => handleModeChange("computer")}
+                            />
+                            Z komputerem
+                        </label>
+                    </div>
+
+                    <div className="border rounded-2xl px-3 py-2 text-sm space-y-2">
+                        <span className="font-semibold block">Ustawienia AI</span>
+                        <label className="flex flex-col gap-1">
+                            <span>Poziom trudności</span>
+                            <select
+                                value={difficulty}
+                                onChange={(e) => handleDifficultyChange(e.target.value as DifficultyLevel)}
+                                className="border rounded px-2 py-1"
+                                disabled={aiControlsDisabled}
+                            >
+                                <option value="easy">Łatwy</option>
+                                <option value="normal">Standard</option>
+                                <option value="hard">Trudny</option>
+                            </select>
+                        </label>
+                        <label className={`flex items-center gap-2 ${aiControlsDisabled ? "text-gray-400" : ""}`}>
+                            <input
+                                type="checkbox"
+                                checked={logAiDecisions}
+                                onChange={() => setLogAiDecisions((prev) => !prev)}
+                                disabled={aiControlsDisabled}
+                            />
+                            Loguj decyzje AI w konsoli
+                        </label>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <button onClick={undo} className="border rounded-2xl px-3 py-2 shadow">Cofnij ruch</button>
+                        <button onClick={reset} className="border rounded-2xl px-3 py-2 shadow">Nowa gra</button>
+                    </div>
                 </div>
             </div>
 
-            <div className="text-lg font-medium">{status}</div>
+            <div className="text-lg font-semibold px-4 py-3 rounded-2xl bg-white/10 text-emerald-50 shadow-inner">
+                {status}
+            </div>
+
+            <div className="flex flex-wrap justify-between items-center gap-2 text-xs uppercase tracking-wide font-semibold px-2">
+                <span className="flex items-center gap-1" style={{ color: goalInfo.left.color }}>
+                    {"<-"} {goalInfo.left.label}
+                </span>
+                <span className="flex items-center gap-1" style={{ color: goalInfo.right.color }}>
+                    {goalInfo.right.label} {"->"}
+                </span>
+            </div>
 
             <BoardSVG
                 W={config.width}
@@ -546,9 +1148,14 @@ export default function PaperSoccerSimple() {
                 <div className="p-4 rounded-2xl border">
                     <h2 className="font-semibold mb-2">Parametry boiska</h2>
                     <ul className="list-disc pl-5 space-y-1">
-                        <li>Rozmiar: {config.width} × {config.height} kratek</li>
-                        <li>Bramka: {config.goalWidth} kratki</li>
+                        <li>Rozmiar: {config.width} × {config.height} kratek ({BOARD_PRESETS[boardSize].label})</li>
                         <li>Pozycja startowa piłki: ({Math.floor(config.width / 2)}, {Math.floor(config.height / 2)})</li>
+                        <li>Tryb gry: {mode === "computer" ? "gracz vs komputer" : "dwóch graczy"}</li>
+                        <li>Poziom AI: {mode === "computer" ? difficultyLabels[difficulty] : "—"}</li>
+                        <li>Zasada przy braku ruchów: przegrywa gracz bez ruchu</li>
+                        <li>Logowanie decyzji AI: {mode === "computer" && logAiDecisions ? "włączone" : "wyłączone"}</li>
+                        <li>Lewa bramka: {goalInfo.left.label}</li>
+                        <li>Prawa bramka: {goalInfo.right.label}</li>
                         <li>Zakaz ruchu po brzegach, dozwolone odbicia od brzegu i linii.</li>
                     </ul>
                 </div>

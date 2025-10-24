@@ -1,10 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
-import {
-    GameEngine,
-    GameConfig,
-    Pos,
-    DEFAULT_CONFIG
-} from "@paper-soccer/core/dist/index.js";
+import { GameEngine, DEFAULT_CONFIG } from "@paper-soccer/core/dist/index.js";
+import type { GameConfig, Pos } from "@paper-soccer/core/dist/index.js";
 
 // ======= Komponent refaktoryzowany =======
 
