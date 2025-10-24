@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 
 // ======= Typy (skopiowane z core) =======
 type Pos = { x: number; y: number };
@@ -49,6 +49,93 @@ type MoveAnalysis = {
 
 const WIN_SCORE = 100000;
 const LOSS_SCORE = -WIN_SCORE;
+
+type SoundType = "move" | "goal" | "draw";
+
+class SoundManager {
+    private context: AudioContext | null = null;
+
+    private async ensureContext(): Promise<AudioContext | null> {
+        if (typeof window === "undefined") return null;
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        if (!AudioCtx) return null;
+        if (!this.context) {
+            this.context = new AudioCtx();
+        }
+        if (this.context.state === "suspended") {
+            try {
+                await this.context.resume();
+            } catch {
+                return null;
+            }
+        }
+        return this.context;
+    }
+
+    resume() {
+        void this.ensureContext();
+    }
+
+    play(type: SoundType) {
+        void this.ensureContext().then((ctx) => {
+            if (!ctx) return;
+            switch (type) {
+                case "move":
+                    this.playMove(ctx);
+                    break;
+                case "goal":
+                    this.playGoal(ctx);
+                    break;
+                case "draw":
+                    this.playDraw(ctx);
+                    break;
+            }
+        });
+    }
+
+    private triggerTone(
+        ctx: AudioContext,
+        frequency: number,
+        duration: number,
+        {
+            delay = 0,
+            type = "triangle",
+            volume = 0.22,
+        }: { delay?: number; type?: OscillatorType; volume?: number } = {}
+    ) {
+        const start = ctx.currentTime + delay + 0.01;
+        const oscillator = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        oscillator.type = type;
+        oscillator.frequency.setValueAtTime(frequency, start);
+
+        gain.gain.setValueAtTime(volume, start);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+
+        oscillator.connect(gain);
+        gain.connect(ctx.destination);
+
+        oscillator.start(start);
+        oscillator.stop(start + duration + 0.05);
+    }
+
+    private playMove(ctx: AudioContext) {
+        this.triggerTone(ctx, 520, 0.12, { type: "triangle", volume: 0.18 });
+        this.triggerTone(ctx, 660, 0.08, { delay: 0.07, type: "sine", volume: 0.15 });
+    }
+
+    private playGoal(ctx: AudioContext) {
+        this.triggerTone(ctx, 420, 0.2, { type: "sawtooth", volume: 0.24 });
+        this.triggerTone(ctx, 640, 0.32, { delay: 0.12, type: "triangle", volume: 0.22 });
+        this.triggerTone(ctx, 880, 0.4, { delay: 0.28, type: "square", volume: 0.18 });
+    }
+
+    private playDraw(ctx: AudioContext) {
+        this.triggerTone(ctx, 360, 0.24, { type: "sine", volume: 0.16 });
+        this.triggerTone(ctx, 280, 0.26, { delay: 0.16, type: "triangle", volume: 0.14 });
+    }
+}
 
 function computeGoalCenter(height: number, goalWidth: number): number {
     const ys = goalYRange(height, goalWidth);
@@ -724,6 +811,7 @@ function BoardSVG({
     orientation,
     topLabel,
     bottomLabel,
+    lastMove,
 }: {
     W: number;
     H: number;
@@ -735,6 +823,7 @@ function BoardSVG({
     orientation: OrientationOption;
     topLabel: GoalLabelDisplay;
     bottomLabel: GoalLabelDisplay;
+    lastMove?: Move;
 }) {
     const stripeId = useMemo(() => `pitch-stripe-${W}-${H}`, [W, H]);
     const goalPatternId = useMemo(() => `goal-net-${W}-${H}`, [W, H]);
@@ -789,6 +878,10 @@ function BoardSVG({
     };
 
     const ysGoal = goalYRange(H, goal);
+    const lastMoveKey = useMemo(() => {
+        if (!lastMove) return null;
+        return keyEdge(lastMove.from, lastMove.to);
+    }, [lastMove]);
 
     const borderSegments: Array<{ x1: number; y1: number; x2: number; y2: number; side?: "LEFT" | "RIGHT" }> = [];
     borderSegments.push({ x1: 0, y1: 0, x2: W, y2: 0 });
@@ -965,6 +1058,7 @@ function BoardSVG({
                     const [a, b] = parseKey(k);
                     const p1 = toXY(a);
                     const p2 = toXY(b);
+                    const isLast = lastMoveKey !== null && k === lastMoveKey;
                     return (
                         <line
                             key={k}
@@ -975,6 +1069,7 @@ function BoardSVG({
                             strokeWidth={Math.max(3, cellSize / 10)}
                             stroke="#f1f5f9"
                             strokeLinecap="round"
+                            className={isLast ? "edge-line edge-last" : "edge-line"}
                         />
                     );
                 })}
@@ -986,10 +1081,17 @@ function BoardSVG({
                     const innerRadius = Math.max(4, cellSize / 7);
                     const centerRadius = Math.max(2, cellSize / 15);
                     return (
-                        <g>
-                            <circle cx={cx} cy={cy} r={ballRadius} fill="black" />
-                            <circle cx={cx} cy={cy} r={innerRadius} fill="white" />
-                            <circle cx={cx} cy={cy} r={centerRadius} fill="black" />
+                        <g
+                            className="ball-sprite"
+                            style={{
+                                transform: `translate(${cx}px, ${cy}px)`,
+                                transformBox: "fill-box",
+                                transformOrigin: "center",
+                            }}
+                        >
+                            <circle cx={0} cy={0} r={ballRadius} fill="black" />
+                            <circle cx={0} cy={0} r={innerRadius} fill="white" />
+                            <circle cx={0} cy={0} r={centerRadius} fill="black" />
                         </g>
                     );
                 })()}
@@ -1050,6 +1152,8 @@ export default function PaperSoccerSimple() {
     const stalemateAsDraw = false;
     const [pendingReset, setPendingReset] = useState(false);
     const [logAiDecisions, setLogAiDecisions] = useState(false);
+    const soundManager = useMemo(() => new SoundManager(), []);
+    const [statusFlash, setStatusFlash] = useState<"goal" | "draw" | null>(null);
     const {
         edges,
         pos,
@@ -1065,11 +1169,65 @@ export default function PaperSoccerSimple() {
         reset
     } = useSimpleGameEngine(config, { stalemateAsDraw });
 
+    const prevHistory = useRef(history.length);
+    const prevWinner = useRef<Player | null>(winner);
+    const prevDraw = useRef(draw);
+
+    useEffect(() => {
+        const unlock = () => soundManager.resume();
+        if (typeof window !== "undefined") {
+            window.addEventListener("pointerdown", unlock, { once: true });
+        }
+        return () => {
+            if (typeof window !== "undefined") {
+                window.removeEventListener("pointerdown", unlock);
+            }
+        };
+    }, [soundManager]);
+
     useEffect(() => {
         if (!pendingReset) return;
         reset();
         setPendingReset(false);
     }, [pendingReset, reset]);
+
+    useEffect(() => {
+        if (history.length <= prevHistory.current) {
+            prevHistory.current = history.length;
+            return;
+        }
+        soundManager.play("move");
+        prevHistory.current = history.length;
+    }, [history.length, soundManager]);
+
+    useEffect(() => {
+        if (winner !== null && prevWinner.current === null) {
+            soundManager.play("goal");
+            setStatusFlash("goal");
+        } else if (winner === null && prevWinner.current !== null) {
+            setStatusFlash(null);
+        }
+        prevWinner.current = winner;
+    }, [winner, soundManager]);
+
+    useEffect(() => {
+        if (draw && !prevDraw.current) {
+            soundManager.play("draw");
+            setStatusFlash("draw");
+        } else if (!draw && prevDraw.current) {
+            setStatusFlash(null);
+        }
+        prevDraw.current = draw;
+    }, [draw, soundManager]);
+
+    useEffect(() => {
+        if (!statusFlash) return;
+        const timeout = window.setTimeout(
+            () => setStatusFlash(null),
+            statusFlash === "goal" ? 1400 : 1600
+        );
+        return () => window.clearTimeout(timeout);
+    }, [statusFlash]);
 
     const goalInfo = useMemo(() => {
         const opponentLabel = mode === "computer" ? "Bramka komputera" : "Bramka gracza B";
@@ -1116,6 +1274,14 @@ export default function PaperSoccerSimple() {
     const bottomGoal = orientation === "playerBottom" ? goalInfo.player : goalInfo.opponent;
     const topLabelDisplay: GoalLabelDisplay = { text: topGoal.label, color: topGoal.color };
     const bottomLabelDisplay: GoalLabelDisplay = { text: bottomGoal.label, color: bottomGoal.color };
+    const lastMove = history.length > 0 ? history[history.length - 1] : undefined;
+    const statusFlashClass =
+        statusFlash === "goal"
+            ? "status-flash-goal ring-4 ring-amber-400/60"
+            : statusFlash === "draw"
+                ? "status-flash-draw ring-4 ring-cyan-400/60"
+                : "";
+    const statusClassName = `text-lg font-semibold px-3 py-2 rounded-2xl bg-white/10 text-emerald-50 shadow-inner status-panel ${statusFlashClass}`;
 
     const status = useMemo(() => {
         if (draw) {
@@ -1323,7 +1489,7 @@ export default function PaperSoccerSimple() {
                 </div>
             </div>
 
-            <div className="text-lg font-semibold px-3 py-2 rounded-2xl bg-white/10 text-emerald-50 shadow-inner">
+            <div className={statusClassName}>
                 {status}
             </div>
 
@@ -1338,6 +1504,7 @@ export default function PaperSoccerSimple() {
                 orientation={orientation}
                 topLabel={topLabelDisplay}
                 bottomLabel={bottomLabelDisplay}
+                lastMove={lastMove}
             />
 
             <div className="grid md:grid-cols-2 gap-3 text-sm">
