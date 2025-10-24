@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
 import { GameEngine, DEFAULT_CONFIG } from "@paper-soccer/core/dist/index.js";
-import type { GameConfig, Pos } from "@paper-soccer/core/dist/index.js";
+import type { GameConfig, Pos, Move } from "@paper-soccer/core/dist/index.js";
 
 // ======= Komponent refaktoryzowany =======
 
@@ -12,7 +12,7 @@ function useGameEngine(config: GameConfig) {
     useEffect(() => {
         engine.updateConfig(config);
         setState(engine.getState());
-    }, [config.width, config.height, config.goalWidth]);
+    }, [engine, config]);
 
     const makeMove = (to: Pos) => {
         const success = engine.makeMove(to);
@@ -194,7 +194,7 @@ function BoardSVG({
 }
 
 export default function PaperSoccerRefactored() {
-    const [config, setConfig] = useState<GameConfig>(DEFAULT_CONFIG);
+    const [config, setConfig] = useState<GameConfig>(() => ({ ...DEFAULT_CONFIG }));
     const {
         edges,
         pos,
@@ -306,7 +306,7 @@ export default function PaperSoccerRefactored() {
     );
 }
 
-function DetailsPanel({ W, H, goal, history }: { W: number; H: number; goal: number; history: any[]; }) {
+function DetailsPanel({ W, H, goal, history }: { W: number; H: number; goal: number; history: Move[]; }) {
     return (
         <div className="grid md:grid-cols-2 gap-4 text-sm">
             <div className="p-4 rounded-2xl border">
