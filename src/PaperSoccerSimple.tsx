@@ -54,6 +54,7 @@ type SoundType = "move" | "goal" | "draw";
 
 class SoundManager {
     private context: AudioContext | null = null;
+    public enabled = true;
 
     private async ensureContext(): Promise<AudioContext | null> {
         if (typeof window === "undefined") return null;
@@ -78,6 +79,7 @@ class SoundManager {
     }
 
     play(type: SoundType) {
+        if (!this.enabled) return;
         void this.ensureContext().then((ctx) => {
             if (!ctx) return;
             switch (type) {
@@ -1105,6 +1107,7 @@ export default function PaperSoccerSimple() {
     const stalemateAsDraw = false;
     const [pendingReset, setPendingReset] = useState(false);
     const soundManager = useMemo(() => new SoundManager(), []);
+    const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
     const [statusFlash, setStatusFlash] = useState<"goal" | "draw" | null>(null);
     const {
         edges,
@@ -1123,6 +1126,10 @@ export default function PaperSoccerSimple() {
     const prevHistory = useRef(history.length);
     const prevWinner = useRef<Player | null>(winner);
     const prevDraw = useRef(draw);
+
+    useEffect(() => {
+        soundManager.enabled = soundEnabled;
+    }, [soundEnabled, soundManager]);
 
     useEffect(() => {
         const unlock = () => soundManager.resume();
@@ -1448,6 +1455,16 @@ export default function PaperSoccerSimple() {
                             }}
                         >
                             Nowa gra
+                        </button>
+                        <button
+                            onClick={() => setSoundEnabled(!soundEnabled)}
+                            className="rounded-2xl px-4 py-2 shadow font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-200 transition-colors"
+                            style={{
+                                backgroundColor: soundEnabled ? "#3b82f6" : "#6b7280",
+                                color: "#ffffff",
+                            }}
+                        >
+                            {soundEnabled ? "Dźwięk WŁ" : "Dźwięk WYŁ"}
                         </button>
                     </div>
                 </div>
