@@ -1474,19 +1474,21 @@ export default function PaperSoccerSimple() {
                 {status}
             </div>
 
-            <BoardSVG
-                W={config.width}
-                H={config.height}
-                goal={config.goalWidth}
-                edges={edges}
-                pos={pos}
-                validMoves={validMoves}
-                onChoose={onChoose}
-                orientation={orientation}
-                topLabel={topLabelDisplay}
-                bottomLabel={bottomLabelDisplay}
-                lastMove={lastMove}
-            />
+            <div className="w-full overflow-x-auto">
+                <BoardSVG
+                    W={config.width}
+                    H={config.height}
+                    goal={config.goalWidth}
+                    edges={edges}
+                    pos={pos}
+                    validMoves={validMoves}
+                    onChoose={onChoose}
+                    orientation={orientation}
+                    topLabel={topLabelDisplay}
+                    bottomLabel={bottomLabelDisplay}
+                    lastMove={lastMove}
+                />
+            </div>
 
             <div className="p-4 rounded-2xl border text-sm">
                 <h2 className="font-semibold mb-2">Historia ruchów ({history.length})</h2>
