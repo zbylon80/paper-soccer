@@ -271,7 +271,7 @@ function BoardSVG({
 
     return (
         <div className="w-full flex justify-center">
-            <svg width={width} height={height} className="bg-white rounded-2xl shadow p-1 select-none">
+            <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto bg-white rounded-2xl shadow p-1 select-none">
                 {/* Siatka punktów */}
                 {Array.from({ length: H + 1 }, (_, y) => (
                     Array.from({ length: W + 1 }, (_, x) => {
@@ -370,7 +370,7 @@ export default function PaperSoccer() {
             <h1 className="text-2xl font-bold">Piłka na kartce – prototyp</h1>
 
             <div className="flex flex-col md:flex-row gap-4 items-start md:items-end">
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <label className="flex flex-col text-sm">Szerokość (W)
                         <input type="number" min={6} max={30} value={W} onChange={(e) => setW(Math.max(6, Math.min(30, Number(e.target.value) || DEFAULT_W)))} className="border rounded px-2 py-1" />
                     </label>
