@@ -42,8 +42,8 @@ This implementation plan creates a simple, responsive web-based Paper Soccer gam
     - **Property 4: Touch and Mouse Input Equivalence**
     - **Validates: Requirements 1.4, 4.1**
 
-- [ ] 3. Implement game state management
-  - [ ] 3.1 Create useGame hook
+- [x] 3. Implement game state management
+  - [x] 3.1 Create useGame hook
     - Wrap existing @paper-soccer/core GameEngine in React hook
     - Manage game state updates and re-rendering
     - Provide methods for makeMove, undo, reset
@@ -53,7 +53,7 @@ This implementation plan creates a simple, responsive web-based Paper Soccer gam
     - **Property 2: Move Validation Consistency**
     - **Validates: Requirements 1.3, 2.2**
 
-  - [ ] 3.3 Create PlayerIndicator component
+  - [x] 3.3 Create PlayerIndicator component
     - Display current player turn clearly
     - Show game status (playing, winner, blocked)
     - Add visual styling that works on all screen sizes

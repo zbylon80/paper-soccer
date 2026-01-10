@@ -1,19 +1,16 @@
 import './index.css';
 import './styles/game.css';
-import { GameEngine, DEFAULT_CONFIG } from '@paper-soccer/core';
+import { DEFAULT_CONFIG } from '@paper-soccer/core';
 import type { Pos } from '@paper-soccer/core';
 import { GameBoard } from './components/GameBoard';
-import { useState } from 'react';
+import { PlayerIndicator } from './components/PlayerIndicator';
+import { useGame } from './hooks/useGame';
 
 export default function App() {
-  const [gameEngine] = useState(() => new GameEngine(DEFAULT_CONFIG));
-  const [gameState, setGameState] = useState(() => gameEngine.getState());
+  const { gameState, makeMove } = useGame(DEFAULT_CONFIG);
   
   const handleMove = (to: Pos) => {
-    const success = gameEngine.makeMove(to);
-    if (success) {
-      setGameState(gameEngine.getState());
-    }
+    makeMove(to);
   };
 
   return (
@@ -34,19 +31,7 @@ export default function App() {
         </div>
         
         <div className="game-controls mt-4">
-          <div className="text-center text-emerald-300">
-            Current Player: Player {gameState.current + 1}
-            {gameState.winner !== null && (
-              <div className="text-yellow-300 font-bold">
-                Player {gameState.winner + 1} Wins!
-              </div>
-            )}
-            {gameState.blockedLoser !== null && (
-              <div className="text-red-300 font-bold">
-                Player {gameState.blockedLoser + 1} is blocked!
-              </div>
-            )}
-          </div>
+          <PlayerIndicator gameState={gameState} />
         </div>
       </div>
     </div>
