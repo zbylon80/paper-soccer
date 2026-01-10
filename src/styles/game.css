@@ -1,0 +1,213 @@
+/* Responsive Game Styles for Paper Soccer */
+
+/* Mobile-first responsive design */
+.game-container {
+  width: 100%;
+  max-width: 100vw;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+/* Game board responsive sizing */
+.game-board {
+  width: 100%;
+  max-width: min(90vw, 90vh);
+  aspect-ratio: 4/5; /* Matches the rotated 8x10 field ratio (height/width) */
+  margin: 0 auto;
+}
+
+/* Touch targets for mobile - minimum 44px */
+.touch-target {
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Button styles for mobile-friendly interaction */
+.game-button {
+  min-height: 44px;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  border-radius: 0.5rem;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+
+.game-button:hover {
+  transform: translateY(-1px);
+}
+
+.game-button:active {
+  transform: translateY(0);
+}
+
+/* Player indicator styles */
+.player-indicator {
+  font-size: 1.25rem;
+  font-weight: 600;
+  text-align: center;
+  margin: 1rem 0;
+}
+
+/* Game controls layout */
+.game-controls {
+  display: flex;
+  gap: 1rem;
+  margin: 1rem 0;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* Instructions panel */
+.instructions {
+  max-width: 100%;
+  margin: 1rem 0;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+}
+
+/* Responsive breakpoints */
+
+/* Small mobile devices */
+@media (max-width: 480px) {
+  .game-container {
+    padding: 0.5rem;
+  }
+  
+  .game-board {
+    max-width: 95vw;
+  }
+  
+  .game-button {
+    font-size: 0.9rem;
+    padding: 0.6rem 1.2rem;
+  }
+  
+  .player-indicator {
+    font-size: 1.1rem;
+  }
+}
+
+/* Tablet and larger mobile devices */
+@media (min-width: 481px) and (max-width: 768px) {
+  .game-container {
+    padding: 1rem;
+  }
+  
+  .game-board {
+    max-width: 85vw;
+  }
+}
+
+/* Desktop and larger screens */
+@media (min-width: 769px) {
+  .game-container {
+    padding: 2rem;
+  }
+  
+  .game-board {
+    max-width: min(800px, 80vh); /* Increased from 600px to 800px */
+  }
+  
+  .game-button {
+    font-size: 1.1rem;
+    padding: 0.8rem 1.6rem;
+  }
+  
+  .player-indicator {
+    font-size: 1.5rem;
+  }
+  
+  /* Desktop hover effects */
+  .game-button:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+}
+
+/* Landscape orientation adjustments */
+@media (orientation: landscape) and (max-height: 600px) {
+  .game-container {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 2rem;
+  }
+  
+  .game-board {
+    max-width: min(60vw, 80vh);
+  }
+  
+  .game-sidebar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 300px;
+  }
+}
+
+/* Prevent zoom and unwanted scrolling on mobile */
+.game-container {
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* SVG responsive styles */
+.game-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: manipulation;
+}
+
+/* Touch target styles for better mobile interaction */
+.touch-target {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.touch-target:hover {
+  opacity: 0.8;
+}
+
+/* Animation for smooth transitions */
+.game-transition {
+  transition: all 0.3s ease;
+}
+
+/* Focus styles for accessibility */
+.game-button:focus,
+.touch-target:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .game-button {
+    border: 2px solid currentColor;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .game-transition,
+  .game-button {
+    transition: none;
+  }
+}
