@@ -14,9 +14,15 @@ export function useGame(config: GameConfig = DEFAULT_CONFIG): UseGameReturn {
   const [gameState, setGameState] = useState(() => engine.getState());
 
   const makeMove = useCallback((to: Pos): boolean => {
+    console.log('useGame: makeMove called with:', to);
+    const currentState = engine.getState();
+    console.log('useGame: current gameState.edges before:', currentState.edges);
     const success = engine.makeMove(to);
+    console.log('useGame: makeMove success:', success);
     if (success) {
-      setGameState(engine.getState());
+      const newState = engine.getState();
+      console.log('useGame: new gameState.edges after:', newState.edges);
+      setGameState(newState);
     }
     return success;
   }, [engine]);

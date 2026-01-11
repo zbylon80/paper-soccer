@@ -46,7 +46,10 @@ export class GameEngine {
   }
 
   public getState(): GameState {
-    return { ...this.state };
+    return { 
+      ...this.state,
+      edges: new Set(this.state.edges) // Deep copy Set
+    };
   }
 
   public getConfig(): GameConfig {

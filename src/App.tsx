@@ -19,8 +19,10 @@ export default function App() {
   
   // Memoize handlers to prevent unnecessary re-renders
   const handleMove = useCallback((to: Pos) => {
+    console.log('App: handleMove called with:', to);
     try {
       const success = makeMove(to);
+      console.log('App: makeMove result:', success);
       if (!success) {
         showError("Invalid move! You can only move to highlighted positions.", 2000);
       }

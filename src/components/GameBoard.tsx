@@ -8,9 +8,14 @@ interface GameBoardProps {
   disabled?: boolean;
 }
 
-export const GameBoard = React.memo<GameBoardProps>(({ gameState, gameConfig, onMove, disabled }) => {
+export function GameBoard({ gameState, gameConfig, onMove, disabled }: GameBoardProps) {
   const { width, height, goalWidth } = gameConfig;
   const { pos: ballPosition, validMoves, edges } = gameState;
+  
+  console.log('GameBoard: RENDER - validMoves:', validMoves);
+  console.log('GameBoard: RENDER - ballPosition:', ballPosition);
+  console.log('GameBoard: RENDER - validMoves detailed:', validMoves.map(m => `{x:${m.x}, y:${m.y}}`));
+  console.log('GameBoard: RENDER - edges:', edges);
   
   // State for interaction feedback
   const [hoveredPosition, setHoveredPosition] = useState<Pos | null>(null);
@@ -79,9 +84,12 @@ export const GameBoard = React.memo<GameBoardProps>(({ gameState, gameConfig, on
     return lines;
   }, [width, height, goalWidth]);
   
-  // Generate existing game edges - memoized
-  const gameEdges = useMemo(() => {
+  // Generate existing game edges - without memoization for debugging
+  const gameEdges = (() => {
     const gameEdges = [];
+    console.log('GameBoard: generating gameEdges - edges from gameState:', edges);
+    console.log('GameBoard: generating gameEdges - edges size:', edges.size);
+    console.log('GameBoard: generating gameEdges - edges values:', Array.from(edges));
     for (const edgeKey of edges) {
       const [fromStr, toStr] = edgeKey.split('|');
       const [fromX, fromY] = fromStr.split(',').map(Number);
@@ -92,8 +100,9 @@ export const GameBoard = React.memo<GameBoardProps>(({ gameState, gameConfig, on
         to: { x: toX, y: toY }
       });
     }
+    console.log('GameBoard: generating gameEdges - generated gameEdges:', gameEdges);
     return gameEdges;
-  }, [edges]);
+  })();
   
   // Check if a position is a valid move - memoized
   const isValidMove = useCallback((pos: Pos) => {
@@ -102,7 +111,10 @@ export const GameBoard = React.memo<GameBoardProps>(({ gameState, gameConfig, on
   
   // Handle click/touch on a position - memoized
   const handlePositionClick = useCallback((pos: Pos) => {
+    console.log('GameBoard: handlePositionClick called with:', pos);
+    console.log('GameBoard: disabled:', disabled, 'isValidMove:', isValidMove(pos));
     if (disabled || !isValidMove(pos)) return;
+    console.log('GameBoard: calling onMove with:', pos);
     onMove(pos);
   }, [disabled, isValidMove, onMove]);
   
@@ -326,4 +338,4 @@ export const GameBoard = React.memo<GameBoardProps>(({ gameState, gameConfig, on
       </svg>
     </div>
   );
-});
+}
