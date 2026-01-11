@@ -19,7 +19,7 @@ export function GameControls({ onUndo, onReset, canUndo, disabled }: GameControl
   };
 
   return (
-    <div className="game-controls">
+    <div className="game-controls" style={{ touchAction: 'manipulation' }}>
       <button
         className={`game-button ${
           canUndo && !disabled
@@ -30,6 +30,9 @@ export function GameControls({ onUndo, onReset, canUndo, disabled }: GameControl
         disabled={!canUndo || disabled}
         title="Undo last move (Space)"
         aria-label="Undo last move"
+        style={{ touchAction: 'manipulation' }}
+        onTouchStart={(e) => e.preventDefault()}
+        onTouchEnd={(e) => e.preventDefault()}
       >
         <span className="flex items-center gap-2">
           ↶ Undo
@@ -49,6 +52,9 @@ export function GameControls({ onUndo, onReset, canUndo, disabled }: GameControl
         disabled={disabled}
         title="Start new game (R)"
         aria-label="Start new game"
+        style={{ touchAction: 'manipulation' }}
+        onTouchStart={(e) => e.preventDefault()}
+        onTouchEnd={(e) => e.preventDefault()}
       >
         <span className="flex items-center gap-2">
           ⟲ New Game

@@ -28,7 +28,7 @@
     <meta name="format-detection" content="telephone=no, date=no, email=no, address=no" />
     <title>Paper Soccer - Simple Web Game</title>
     <style>
-      /* Critical CSS for preventing layout shift */
+      /* Critical CSS for preventing layout shift and zoom */
       body {
         margin: 0;
         padding: 0;
@@ -38,11 +38,17 @@
         /* Prevent text size adjustment on orientation change */
         -webkit-text-size-adjust: 100%;
         -ms-text-size-adjust: 100%;
+        /* Prevent double-tap zoom globally */
+        -webkit-touch-callout: none;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
       }
       
       /* Prevent zoom on double tap */
       * {
         touch-action: manipulation;
+        -webkit-touch-callout: none;
+        -webkit-tap-highlight-color: transparent;
       }
       
       /* Loading state to prevent flash */

@@ -114,12 +114,14 @@ export function GameBoard({ gameState, gameConfig, onMove, disabled }: GameBoard
   // Handle touch events
   const handleTouchStart = useCallback((e: React.TouchEvent, pos: Pos) => {
     e.preventDefault(); // Prevent mouse events from firing
-    if (disabled || !isValidMove(pos)) return;
-    setTouchedPosition(pos);
+    if (disabled) return;
+    if (isValidMove(pos)) {
+      setTouchedPosition(pos);
+    }
   }, [disabled, validMoves]);
   
   const handleTouchEnd = useCallback((e: React.TouchEvent, pos: Pos) => {
-    e.preventDefault();
+    e.preventDefault(); // Always prevent default to avoid zoom
     setTouchedPosition(null);
     if (disabled || !isValidMove(pos)) return;
     onMove(pos);
@@ -145,7 +147,27 @@ export function GameBoard({ gameState, gameConfig, onMove, disabled }: GameBoard
         className="game-svg"
         viewBox={`0 0 ${svgWidth} ${svgHeight}`}
         xmlns="http://www.w3.org/2000/svg"
+        onTouchStart={(e) => e.preventDefault()}
+        onTouchEnd={(e) => e.preventDefault()}
+        onTouchMove={(e) => e.preventDefault()}
       >
+        {/* Invisible full-board touch target to prevent zoom anywhere */}
+        <rect
+          x={0}
+          y={0}
+          width={svgWidth}
+          height={svgHeight}
+          fill="transparent"
+          style={{
+            touchAction: 'manipulation',
+            WebkitTouchCallout: 'none',
+            WebkitTapHighlightColor: 'transparent'
+          }}
+          onTouchStart={(e) => e.preventDefault()}
+          onTouchEnd={(e) => e.preventDefault()}
+          onTouchMove={(e) => e.preventDefault()}
+        />
+        
         {/* Field background (rotated dimensions) */}
         <rect
           x={padding}
@@ -222,26 +244,24 @@ export function GameBoard({ gameState, gameConfig, onMove, disabled }: GameBoard
           
           return (
             <g key={`point-${index}`}>
-              {/* Invisible touch target for better mobile interaction */}
-              {isValid && (
-                <circle
-                  cx={svgPos.x}
-                  cy={svgPos.y}
-                  r={touchTargetSize / 2}
-                  fill="transparent"
-                  className="touch-target"
-                  onClick={() => handlePositionClick(point)}
-                  onMouseEnter={() => handleMouseEnter(point)}
-                  onMouseLeave={handleMouseLeave}
-                  onTouchStart={(e) => handleTouchStart(e, point)}
-                  onTouchEnd={(e) => handleTouchEnd(e, point)}
-                  onTouchCancel={handleTouchCancel}
-                  style={{ 
-                    cursor: !disabled ? 'pointer' : 'default',
-                    touchAction: 'manipulation'
-                  }}
-                />
-              )}
+              {/* Invisible touch target for ALL positions to prevent zoom */}
+              <circle
+                cx={svgPos.x}
+                cy={svgPos.y}
+                r={touchTargetSize / 2}
+                fill="transparent"
+                className="touch-target"
+                onClick={() => handlePositionClick(point)}
+                onMouseEnter={() => handleMouseEnter(point)}
+                onMouseLeave={handleMouseLeave}
+                onTouchStart={(e) => handleTouchStart(e, point)}
+                onTouchEnd={(e) => handleTouchEnd(e, point)}
+                onTouchCancel={handleTouchCancel}
+                style={{ 
+                  cursor: isValid && !disabled ? 'pointer' : 'default',
+                  touchAction: 'manipulation'
+                }}
+              />
               
               {/* Visual point */}
               <circle
