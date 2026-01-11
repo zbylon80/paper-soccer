@@ -154,7 +154,7 @@ This implementation plan creates a simple, responsive web-based Paper Soccer gam
     - **Property 5: AI Move Validity**
     - **Validates: Requirements 5.1, 5.2**
 
-  - [ ] 9.3 Implement AI heuristic strategy
+  - [x] 9.3 Implement AI heuristic strategy
     - Add goal-seeking behavior (prioritize moves toward opponent's goal)
     - Add self-preservation logic (avoid immediately blocking moves)
     - Add bounce opportunity detection
