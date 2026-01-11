@@ -1,7 +1,7 @@
 /* Responsive Game Styles for Paper Soccer */
 /* Mobile-first responsive design approach */
 
-/* Base mobile styles (320px and up) */
+/* Game container - allow scrolling */
 .game-container {
   width: 100%;
   max-width: 100vw;
@@ -9,9 +9,11 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start; /* Changed from center to flex-start */
   padding: 0.75rem;
   box-sizing: border-box;
+  /* Allow scrolling - REMOVED overflow-x: hidden */
+  overflow-y: auto;
   /* Prevent zoom and unwanted scrolling on mobile */
   touch-action: manipulation;
   -webkit-touch-callout: none;
@@ -25,8 +27,6 @@
   /* Prevent text size adjustment on orientation change */
   -webkit-text-size-adjust: 100%;
   -ms-text-size-adjust: 100%;
-  /* Prevent horizontal scrolling */
-  overflow-x: hidden;
   /* Optimize for mobile performance */
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
@@ -43,12 +43,70 @@
   align-items: center;
 }
 
-/* Game board container */
+/* Game board container - flexible height */
 .game-board-container {
   display: flex;
   flex-direction: column;
   align-items: center;
   width: 100%;
+  /* Flexible height - no fixed dimensions */
+  position: relative;
+}
+
+/* Game mode selector styles */
+.game-mode-section {
+  width: 100%;
+  max-width: 600px;
+  margin-bottom: 1rem;
+}
+
+.game-mode-selector {
+  /* Prevent zoom on interactions */
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+.game-mode-selector h3 {
+  margin: 0 0 0.75rem 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.game-mode-selector button {
+  min-height: 48px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  /* Improve touch feedback */
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+.game-mode-selector button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.game-mode-selector button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.game-mode-selector button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
 }
 
 /* Instructions sidebar */
@@ -57,7 +115,7 @@
   max-width: 600px;
 }
 
-/* Game board responsive sizing - mobile first */
+/* Game board responsive sizing - stable but flexible */
 .game-board {
   width: 100%;
   max-width: min(95vw, 85vh);
@@ -77,6 +135,9 @@
   /* Prevent double-tap zoom on the entire game board */
   -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
+  /* Stabilize layout but allow flexibility */
+  position: relative;
+  overflow: hidden;
 }
 
 /* Touch targets for mobile - minimum 44px (iOS/Android guidelines) */
@@ -127,13 +188,20 @@
   opacity: 0.9;
 }
 
-/* Player indicator styles - mobile optimized */
+/* Player indicator styles - mobile optimized with fixed height */
 .player-indicator {
   font-size: 1.125rem; /* Slightly smaller for mobile */
   font-weight: 600;
   text-align: center;
   margin: 0.75rem 0;
   line-height: 1.3;
+  /* Fixed height to prevent layout jumping */
+  min-height: 80px;
+  height: 80px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
   /* Prevent zoom on state changes */
   touch-action: manipulation;
   -webkit-touch-callout: none;
@@ -170,7 +238,7 @@
   line-height: 1.4;
 }
 
-/* SVG responsive styles */
+/* SVG responsive styles with stability */
 .game-svg {
   width: 100%;
   height: 100%;
@@ -193,6 +261,7 @@
   /* Prevent double-tap zoom */
   -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
+  /* Remove absolute positioning - it was causing rendering issues */
 }
 
 /* Mobile-specific optimizations */
@@ -273,6 +342,12 @@ button, .touch-target, .game-button {
   
   .game-board {
     max-width: min(98vw, 80vh);
+    min-height: 280px;
+    height: min(98vw * 1.25, 80vh);
+  }
+  
+  .game-board-container {
+    /* Flexible height */
   }
   
   .game-button {
@@ -285,6 +360,8 @@ button, .touch-target, .game-button {
   .player-indicator {
     font-size: 1rem;
     margin: 0.5rem 0;
+    min-height: 70px;
+    height: 70px;
   }
   
   .game-controls {
@@ -307,6 +384,12 @@ button, .touch-target, .game-button {
   
   .game-board {
     max-width: min(90vw, 85vh);
+    min-height: 320px;
+    height: min(90vw * 1.25, 85vh);
+  }
+  
+  .game-board-container {
+    /* Flexible height */
   }
   
   .game-button {
@@ -316,6 +399,8 @@ button, .touch-target, .game-button {
   
   .player-indicator {
     font-size: 1.25rem;
+    min-height: 85px;
+    height: 85px;
   }
 }
 
@@ -327,6 +412,12 @@ button, .touch-target, .game-button {
   
   .game-board {
     max-width: min(700px, 75vh);
+    min-height: 400px;
+    height: min(700px * 1.25, 75vh);
+  }
+  
+  .game-board-container {
+    /* Flexible height */
   }
   
   .game-button {
@@ -337,6 +428,8 @@ button, .touch-target, .game-button {
   
   .player-indicator {
     font-size: 1.375rem;
+    min-height: 90px;
+    height: 90px;
   }
   
   /* Desktop hover effects start appearing */
@@ -349,6 +442,12 @@ button, .touch-target, .game-button {
 @media (min-width: 1025px) and (max-width: 1439px) {
   .game-board {
     max-width: min(650px, 70vh);
+    min-height: 450px;
+    height: min(650px * 1.25, 70vh);
+  }
+  
+  .game-board-container {
+    /* Flexible height */
   }
   
   .instructions-sidebar {
@@ -376,10 +475,13 @@ button, .touch-target, .game-button {
     display: flex;
     flex-direction: column;
     align-items: center;
+    /* Flexible height */
   }
   
   .game-board {
-    max-width: min(700px, 75vh); /* Większy rozmiar bo nie ma sidebara */
+    max-width: min(700px, 75vh);
+    min-height: 500px;
+    height: min(700px * 1.25, 75vh);
   }
   
   .instructions-sidebar {
@@ -397,6 +499,8 @@ button, .touch-target, .game-button {
   .player-indicator {
     font-size: 1.5rem;
     margin: 1rem 0;
+    min-height: 100px;
+    height: 100px;
   }
   
   .game-controls {
@@ -454,6 +558,8 @@ button, .touch-target, .game-button {
   .player-indicator {
     font-size: 1rem;
     margin: 0.5rem 0;
+    min-height: 75px;
+    height: 75px;
   }
   
   .game-controls {
@@ -514,6 +620,8 @@ button, .touch-target, .game-button {
   /* Stack elements efficiently */
   .player-indicator {
     margin: 0.5rem 0;
+    min-height: 70px;
+    height: 70px;
   }
   
   .game-controls {
@@ -596,7 +704,13 @@ button, .touch-target, .game-button {
   }
   
   .game-board {
-    max-width: min(800px, 80vh); /* Większy na bardzo dużych ekranach */
+    max-width: min(800px, 80vh);
+    min-height: 600px;
+    height: min(800px * 1.25, 80vh);
+  }
+  
+  .game-board-container {
+    /* Flexible height */
   }
   
   .instructions-sidebar {

@@ -6,6 +6,7 @@ import type { Pos } from '@paper-soccer/core';
 import { GameBoard } from './components/GameBoard';
 import { PlayerIndicator } from './components/PlayerIndicator';
 import { GameControls } from './components/GameControls';
+import { GameModeSelector } from './components/GameModeSelector';
 import { Instructions } from './components/Instructions';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { FeedbackDisplay } from './components/FeedbackDisplay';
@@ -14,7 +15,19 @@ import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useFeedback } from './hooks/useFeedback';
 
 export default function App() {
-  const { gameState, makeMove, undo, reset, canUndo } = useGame(DEFAULT_CONFIG);
+  const { 
+    gameState, 
+    makeMove, 
+    undo, 
+    reset, 
+    canUndo, 
+    gameMode, 
+    setGameMode, 
+    aiDifficulty, 
+    setAIDifficulty, 
+    isAiTurn, 
+    aiThinking 
+  } = useGame(DEFAULT_CONFIG);
   const { messages, removeMessage, showError, showSuccess, showInfo } = useFeedback();
   
   // Memoize handlers to prevent unnecessary re-renders
@@ -24,7 +37,11 @@ export default function App() {
       const success = makeMove(to);
       console.log('App: makeMove result:', success);
       if (!success) {
-        showError("Invalid move! You can only move to highlighted positions.", 2000);
+        if (isAiTurn) {
+          showError("It's the AI's turn! Please wait.", 2000);
+        } else {
+          showError("Invalid move! You can only move to highlighted positions.", 2000);
+        }
       }
       return success;
     } catch (error) {
@@ -32,7 +49,7 @@ export default function App() {
       showError("Something went wrong with that move. Please try again.", 3000);
       return false;
     }
-  }, [makeMove, showError]);
+  }, [makeMove, showError, isAiTurn]);
 
   const handleUndo = useCallback(() => {
     try {
@@ -40,7 +57,11 @@ export default function App() {
       if (success) {
         showInfo("Move undone", 1500);
       } else {
-        showError("Nothing to undo", 2000);
+        if (isAiTurn || aiThinking) {
+          showError("Cannot undo during AI turn", 2000);
+        } else {
+          showError("Nothing to undo", 2000);
+        }
       }
       return success;
     } catch (error) {
@@ -48,7 +69,7 @@ export default function App() {
       showError("Could not undo move. Please try again.", 3000);
       return false;
     }
-  }, [undo, showError, showInfo]);
+  }, [undo, showError, showInfo, isAiTurn, aiThinking]);
 
   const handleReset = useCallback(() => {
     try {
@@ -65,8 +86,8 @@ export default function App() {
     onUndo: handleUndo,
     onReset: handleReset,
     canUndo,
-    disabled: false
-  }), [handleUndo, handleReset, canUndo]);
+    disabled: isAiTurn || aiThinking
+  }), [handleUndo, handleReset, canUndo, isAiTurn, aiThinking]);
   
   // Enable keyboard shortcuts
   useKeyboardShortcuts(keyboardShortcutsConfig);
@@ -90,6 +111,17 @@ export default function App() {
           
           {/* Main game layout - responsive design */}
           <main className="game-layout">
+            {/* Game mode selector */}
+            <section className="game-mode-section" aria-label="Game mode selection">
+              <GameModeSelector
+                gameMode={gameMode}
+                aiDifficulty={aiDifficulty}
+                onGameModeChange={setGameMode}
+                onAIDifficultyChange={setAIDifficulty}
+                disabled={aiThinking}
+              />
+            </section>
+            
             {/* Instructions section - appears first on mobile, above game on desktop */}
             <section className="instructions-sidebar" aria-label="Game instructions">
               <Instructions />
@@ -99,7 +131,12 @@ export default function App() {
             <section className="game-board-container" aria-label="Game board and controls">
               {/* Player status indicator */}
               <div className="mb-3 md:mb-4">
-                <PlayerIndicator gameState={gameState} />
+                <PlayerIndicator 
+                  gameState={gameState} 
+                  gameMode={gameMode}
+                  isAiTurn={isAiTurn}
+                  aiThinking={aiThinking}
+                />
               </div>
               
               {/* Game board */}
@@ -108,7 +145,8 @@ export default function App() {
                   gameState={gameState}
                   gameConfig={DEFAULT_CONFIG}
                   onMove={handleMove}
-                  disabled={false}
+                  disabled={isAiTurn || aiThinking}
+                  gameMode={gameMode}
                 />
               </div>
               
@@ -118,7 +156,7 @@ export default function App() {
                   onUndo={handleUndo}
                   onReset={handleReset}
                   canUndo={canUndo}
-                  disabled={false}
+                  disabled={isAiTurn || aiThinking}
                 />
               </div>
             </section>

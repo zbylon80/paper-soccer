@@ -104,7 +104,11 @@ export class HeuristicAI implements AIPlayer {
    */
   private evaluateGoalDistance(move: Pos, gameState: GameState, config: GameConfig): number {
     const aiPlayer = gameState.current;
-    const targetGoalX = aiPlayer === 0 ? config.width : 0; // Player 0 targets right goal, Player 1 targets left goal
+    // CORRECT LOGIC: 
+    // - Player 0 (human) has goal at x=0 (bottom, blue) - AI should attack this
+    // - Player 1 (AI) has goal at x=width (top, red) - human should attack this
+    // - AI is Player 1, so AI should target Player 0's goal at x=0
+    const targetGoalX = aiPlayer === 1 ? 0 : config.width; // AI (Player 1) targets Player 0's goal (x=0, bottom)
     
     // Calculate goal zone Y coordinates
     const goalYRange = this.getGoalYRange(config.height, config.goalWidth);
@@ -420,7 +424,8 @@ export class HeuristicAI implements AIPlayer {
 
     // Determine opponent's goal
     const opponentPlayer = gameState.current === 0 ? 1 : 0;
-    const opponentGoalX = opponentPlayer === 0 ? config.width : 0;
+    // CORRECT: Player 0 goal is at x=0 (bottom), Player 1 goal is at x=width (top)
+    const opponentGoalX = opponentPlayer === 0 ? 0 : config.width;
 
     let blockingScore = 0;
 

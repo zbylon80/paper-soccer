@@ -1,37 +1,61 @@
 import React, { useMemo } from 'react';
 import type { GameState } from '@paper-soccer/core';
+import type { GameMode } from '../types/ai';
 
 interface PlayerIndicatorProps {
   gameState: GameState;
+  gameMode?: GameMode;
+  isAiTurn?: boolean;
+  aiThinking?: boolean;
 }
 
-export const PlayerIndicator = React.memo<PlayerIndicatorProps>(({ gameState }) => {
+export const PlayerIndicator = React.memo<PlayerIndicatorProps>(({ 
+  gameState, 
+  gameMode = 'human-vs-human',
+  isAiTurn = false,
+  aiThinking = false
+}) => {
   const { current, winner, blockedLoser, extraTurn } = gameState;
+  
+  // Determine player names based on game mode
+  const getPlayerName = (playerIndex: number): string => {
+    if (gameMode === 'human-vs-ai') {
+      return playerIndex === 1 ? 'AI' : 'Player';
+    }
+    return `Player ${playerIndex + 1}`;
+  };
   
   // Determine the display status - memoized for performance
   const gameStatus = useMemo(() => {
     if (winner !== null) {
+      const winnerName = getPlayerName(winner);
       return {
         type: 'winner' as const,
-        message: `Player ${winner + 1} Wins!`,
+        message: `${winnerName} Wins!`,
         className: 'text-yellow-300 font-bold'
       };
     }
     
     if (blockedLoser !== null) {
+      const blockedPlayerName = getPlayerName(blockedLoser);
       return {
         type: 'blocked' as const,
-        message: `Player ${blockedLoser + 1} is blocked!`,
+        message: `${blockedPlayerName} is blocked!`,
         className: 'text-red-300 font-bold'
       };
     }
     
+    const currentPlayerName = getPlayerName(current);
+    const turnMessage = aiThinking && isAiTurn 
+      ? 'AI is thinking...' 
+      : `${currentPlayerName}'s Turn${extraTurn ? ' (Extra Turn)' : ''}`;
+    
     return {
       type: 'playing' as const,
-      message: `Player ${current + 1}'s Turn${extraTurn ? ' (Extra Turn)' : ''}`,
-      className: 'text-emerald-200'
+      message: turnMessage,
+      className: aiThinking && isAiTurn ? 'text-purple-300' : 'text-emerald-200'
     };
-  }, [current, winner, blockedLoser, extraTurn]);
+  }, [current, winner, blockedLoser, extraTurn, gameMode, isAiTurn, aiThinking]);
 
   return (
     <div className="player-indicator text-center py-4" style={{ touchAction: 'manipulation' }}>
@@ -48,22 +72,29 @@ export const PlayerIndicator = React.memo<PlayerIndicatorProps>(({ gameState }) 
               ? 'bg-blue-500 text-white shadow-lg scale-110' 
               : 'bg-gray-600 text-gray-300'
           }`} style={{ touchAction: 'manipulation' }}>
-            Player 1
+            {getPlayerName(0)}
           </div>
           <div className="text-emerald-400 font-bold" style={{ touchAction: 'manipulation' }}>VS</div>
           <div className={`player-badge px-3 py-1 rounded-full text-sm font-medium transition-all duration-200 ${
             current === 1 
-              ? 'bg-red-500 text-white shadow-lg scale-110' 
+              ? (gameMode === 'human-vs-ai' ? 'bg-purple-500 text-white shadow-lg scale-110' : 'bg-red-500 text-white shadow-lg scale-110')
               : 'bg-gray-600 text-gray-300'
           }`} style={{ touchAction: 'manipulation' }}>
-            Player 2
+            {getPlayerName(1)}
           </div>
         </div>
       )}
       
-      {extraTurn && gameStatus.type === 'playing' && (
+      {extraTurn && gameStatus.type === 'playing' && !aiThinking && (
         <div className="mt-2 text-xs text-yellow-200 animate-pulse" style={{ touchAction: 'manipulation' }}>
           Bounced off the edge - same player continues!
+        </div>
+      )}
+      
+      {aiThinking && isAiTurn && (
+        <div className="mt-2 text-xs text-purple-300 animate-pulse" style={{ touchAction: 'manipulation' }}>
+          <span className="inline-block animate-spin mr-1">🤖</span>
+          Analyzing the best move...
         </div>
       )}
     </div>

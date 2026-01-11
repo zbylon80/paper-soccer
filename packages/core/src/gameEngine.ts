@@ -81,7 +81,16 @@ export class GameEngine {
     // Sprawdź gol
     const goal = isGoal(this.state.pos, this.config.width, this.config.height, this.config.goalWidth);
     if (goal) {
-      this.state.winner = this.state.current;
+      // FIXED: W Paper Soccer, jeśli strzelisz gola, to znaczy że dotarłeś do bramki przeciwnika i wygrywasz
+      // LEFT goal (x=0) - bramka Player 0, więc jeśli Player 1 tam strzeli, to Player 1 wygrywa
+      // RIGHT goal (x=width) - bramka Player 1, więc jeśli Player 0 tam strzeli, to Player 0 wygrywa
+      if (goal.side === "LEFT") {
+        // Gol w lewej bramce (x=0) - bramka Player 0
+        this.state.winner = 1; // Player 1 wygrywa bo strzelił do bramki Player 0
+      } else {
+        // Gol w prawej bramce (x=width) - bramka Player 1  
+        this.state.winner = 0; // Player 0 wygrywa bo strzelił do bramki Player 1
+      }
       this.state.extraTurn = false;
       this.state.validMoves = [];
       return true;
@@ -169,7 +178,14 @@ export class GameEngine {
       // Gol?
       const goal = isGoal(pos, this.config.width, this.config.height, this.config.goalWidth);
       if (goal) {
-        winner = current;
+        // FIXED: Ta sama logika co w makeMove
+        if (goal.side === "LEFT") {
+          // Gol w lewej bramce (x=0) - bramka Player 0
+          winner = 1; // Player 1 wygrywa bo strzelił do bramki Player 0
+        } else {
+          // Gol w prawej bramce (x=width) - bramka Player 1  
+          winner = 0; // Player 0 wygrywa bo strzelił do bramki Player 1
+        }
         extraTurn = false;
         break;
       }

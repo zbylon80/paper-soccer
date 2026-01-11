@@ -165,7 +165,7 @@ This implementation plan creates a simple, responsive web-based Paper Soccer gam
     - **Property 7: AI Strategic Behavior**
     - **Validates: Requirements 5.4**
 
-  - [ ] 9.5 Add game mode selection UI
+  - [x] 9.5 Add game mode selection UI
     - Create game mode selector (Human vs Human / Human vs AI)
     - Add AI difficulty selector
     - Update PlayerIndicator to show AI vs Human
