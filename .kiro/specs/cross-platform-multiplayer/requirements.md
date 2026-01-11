@@ -10,6 +10,8 @@ This specification defines the requirements for creating a simple, responsive we
 - **Web_Game**: Browser-based responsive web application that works on desktop and mobile
 - **Player**: A user playing the game in their web browser
 - **Responsive_Design**: UI that adapts to different screen sizes (desktop, tablet, mobile)
+- **AI_Player**: Computer opponent that uses heuristic strategy to make intelligent moves
+- **Game_Mode**: Playing configuration - either Human vs Human or Human vs AI
 
 ## Requirements
 
@@ -60,3 +62,17 @@ This specification defines the requirements for creating a simple, responsive we
 3. THE Web_Game SHALL prevent accidental zooming or scrolling during gameplay
 4. THE Web_Game SHALL work well in both portrait and landscape orientations
 5. THE Web_Game SHALL use mobile-friendly fonts and spacing
+
+### Requirement 5: AI Player Support
+
+**User Story:** As a player, I want to play against an AI opponent, so that I can practice and enjoy the game even when no human opponent is available.
+
+#### Acceptance Criteria
+
+1. WHEN a player selects "Play vs AI" mode, THE Web_Game SHALL provide an AI opponent that makes valid moves
+2. WHEN it's the AI's turn, THE AI SHALL analyze the game state and make a strategic move within 2 seconds
+3. WHEN the AI makes a move, THE Web_Game SHALL provide visual feedback showing the AI's move
+4. THE AI SHALL use a heuristic strategy that prioritizes advancing toward the opponent's goal
+5. THE AI SHALL avoid moves that would immediately block itself when possible
+6. THE Web_Game SHALL allow players to switch between "Human vs Human" and "Human vs AI" modes
+7. THE Web_Game SHALL clearly indicate when it's the AI's turn vs human player's turn

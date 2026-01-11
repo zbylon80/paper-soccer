@@ -143,6 +143,58 @@ This implementation plan creates a simple, responsive web-based Paper Soccer gam
   - Ensure the game is fun and easy to use
   - Confirm deployment is ready
 
+- [ ] 9. Implement AI Player System
+  - [x] 9.1 Create AI player interface and basic structure
+    - Define AIPlayer interface with analyzeMove method
+    - Create HeuristicAI class with basic move analysis
+    - Add AI difficulty levels (easy, medium, hard)
+    - _Requirements: 5.1, 5.2_
+
+  - [ ]* 9.2 Write property test for AI move validity
+    - **Property 5: AI Move Validity**
+    - **Validates: Requirements 5.1, 5.2**
+
+  - [ ] 9.3 Implement AI heuristic strategy
+    - Add goal-seeking behavior (prioritize moves toward opponent's goal)
+    - Add self-preservation logic (avoid immediately blocking moves)
+    - Add bounce opportunity detection
+    - Implement difficulty-based randomness
+    - _Requirements: 5.4, 5.5_
+
+  - [ ]* 9.4 Write property test for AI strategic behavior
+    - **Property 7: AI Strategic Behavior**
+    - **Validates: Requirements 5.4**
+
+  - [ ] 9.5 Add game mode selection UI
+    - Create game mode selector (Human vs Human / Human vs AI)
+    - Add AI difficulty selector
+    - Update PlayerIndicator to show AI vs Human
+    - _Requirements: 5.6, 5.7_
+
+  - [ ] 9.6 Integrate AI into game flow
+    - Modify useGame hook to support AI players
+    - Add AI turn detection and automatic move execution
+    - Add AI thinking indicator with delay
+    - Handle AI move animations and feedback
+    - _Requirements: 5.2, 5.3, 5.7_
+
+  - [ ]* 9.7 Write property test for AI response time
+    - **Property 6: AI Response Time**
+    - **Validates: Requirements 5.2**
+
+  - [ ] 9.8 Add AI visual feedback and polish
+    - Show "AI is thinking..." indicator
+    - Add smooth AI move animations
+    - Ensure AI moves are clearly visible to player
+    - Add AI move history tracking
+    - _Requirements: 5.3, 5.7_
+
+- [ ] 10. Enhanced checkpoint - Test AI functionality
+  - Test AI vs Human gameplay on desktop and mobile
+  - Verify AI makes strategic moves at different difficulty levels
+  - Ensure AI response times are appropriate
+  - Test game mode switching functionality
+
 ## Notes
 
 - Tasks marked with `*` are optional and can be skipped for faster development

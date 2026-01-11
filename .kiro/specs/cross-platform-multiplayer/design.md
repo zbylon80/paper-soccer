@@ -108,7 +108,46 @@ export function useGame() {
 }
 ```
 
-### 3. Responsive Design
+### 3. AI Player System
+
+**Purpose**: Provides intelligent computer opponent using heuristic strategy.
+
+```typescript
+interface AIPlayer {
+  analyzeMove(gameState: GameState, config: GameConfig): Pos | null;
+  getDifficulty(): 'easy' | 'medium' | 'hard';
+  setDifficulty(level: 'easy' | 'medium' | 'hard'): void;
+}
+
+export class HeuristicAI implements AIPlayer {
+  private difficulty: 'easy' | 'medium' | 'hard' = 'medium';
+  
+  analyzeMove(gameState: GameState, config: GameConfig): Pos | null {
+    // Heuristic strategy:
+    // 1. Prioritize moves toward opponent's goal
+    // 2. Avoid moves that immediately block self
+    // 3. Look for bounce opportunities
+    // 4. Add randomness based on difficulty level
+  }
+}
+```
+
+### 4. Game Mode Management
+
+**Purpose**: Handles switching between Human vs Human and Human vs AI modes.
+
+```typescript
+type GameMode = 'human-vs-human' | 'human-vs-ai';
+
+interface GameModeState {
+  mode: GameMode;
+  aiPlayer: AIPlayer | null;
+  isAiTurn: boolean;
+  aiThinking: boolean;
+}
+```
+
+### 5. Responsive Design
 
 **Mobile-First Approach**:
 - Touch targets minimum 44px (iOS guidelines)
@@ -127,11 +166,58 @@ export function useGame() {
 
 ```typescript
 interface GameDisplayState {
-  currentPlayer: 'Player 1' | 'Player 2';
-  gameStatus: 'playing' | 'player1_wins' | 'player2_wins' | 'blocked';
+  currentPlayer: 'Player 1' | 'Player 2' | 'AI';
+  gameStatus: 'playing' | 'player1_wins' | 'player2_wins' | 'ai_wins' | 'blocked';
   canUndo: boolean;
   validMoves: Pos[];
   ballPosition: Pos;
+  gameMode: 'human-vs-human' | 'human-vs-ai';
+  isAiTurn: boolean;
+  aiThinking: boolean;
+}
+```
+
+### AI Strategy Configuration
+
+```typescript
+interface AIConfig {
+  difficulty: 'easy' | 'medium' | 'hard';
+  responseTimeMs: number;
+  randomnessFactor: number; // 0-1, higher = more random moves
+  goalSeekingWeight: number; // Priority for moves toward goal
+  selfPreservationWeight: number; // Priority for avoiding blocks
+}
+```
+
+## AI Strategy Implementation
+
+### Heuristic Algorithm
+
+The AI uses a multi-factor heuristic to evaluate moves:
+
+1. **Goal Distance**: Prioritize moves that reduce distance to opponent's goal
+2. **Self-Preservation**: Avoid moves that immediately block the AI
+3. **Bounce Opportunities**: Look for moves that grant extra turns
+4. **Opponent Blocking**: Consider moves that limit opponent's options
+
+### Difficulty Levels
+
+- **Easy**: High randomness, basic goal-seeking only
+- **Medium**: Balanced strategy with moderate lookahead
+- **Hard**: Advanced heuristics with minimal randomness
+
+### Move Selection Process
+
+```typescript
+function selectMove(gameState: GameState, config: AIConfig): Pos {
+  const validMoves = gameState.validMoves;
+  const scores = validMoves.map(move => evaluateMove(move, gameState, config));
+  
+  // Add randomness based on difficulty
+  const adjustedScores = applyRandomness(scores, config.randomnessFactor);
+  
+  // Select best move
+  return validMoves[getBestMoveIndex(adjustedScores)];
 }
 ```
 
@@ -154,6 +240,18 @@ interface GameDisplayState {
 ### Property 4: Touch and Mouse Input Equivalence
 *For any* valid move position, both touch input (mobile) and mouse input (desktop) should produce the same game result.
 **Validates: Requirements 1.4, 4.1**
+
+### Property 5: AI Move Validity
+*For any* game state where AI has valid moves available, the AI should always return a move that is in the valid moves list.
+**Validates: Requirements 5.1, 5.2**
+
+### Property 6: AI Response Time
+*For any* game state, the AI should complete move analysis and return a decision within the specified time limit.
+**Validates: Requirements 5.2**
+
+### Property 7: AI Strategic Behavior
+*For any* game state with multiple valid moves, the AI should prefer moves that advance toward the opponent's goal over moves that retreat.
+**Validates: Requirements 5.4**
 
 ## Error Handling
 
