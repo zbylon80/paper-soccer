@@ -4,10 +4,21 @@ import { DEFAULT_CONFIG } from '@paper-soccer/core';
 import type { Pos } from '@paper-soccer/core';
 import { GameBoard } from './components/GameBoard';
 import { PlayerIndicator } from './components/PlayerIndicator';
+import { GameControls } from './components/GameControls';
+import { Instructions } from './components/Instructions';
 import { useGame } from './hooks/useGame';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 
 export default function App() {
-  const { gameState, makeMove } = useGame(DEFAULT_CONFIG);
+  const { gameState, makeMove, undo, reset, canUndo } = useGame(DEFAULT_CONFIG);
+  
+  // Enable keyboard shortcuts
+  useKeyboardShortcuts({
+    onUndo: undo,
+    onReset: reset,
+    canUndo,
+    disabled: false
+  });
   
   const handleMove = (to: Pos) => {
     makeMove(to);
@@ -21,6 +32,11 @@ export default function App() {
           Simple web-based game - works on desktop and mobile
         </div>
         
+        {/* Instructions */}
+        <div className="mb-6">
+          <Instructions />
+        </div>
+        
         {/* Game board with the new GameBoard component */}
         <div className="game-board bg-emerald-800/30 rounded-lg p-4 backdrop-blur-sm">
           <GameBoard
@@ -32,6 +48,12 @@ export default function App() {
         
         <div className="game-controls mt-4">
           <PlayerIndicator gameState={gameState} />
+          <GameControls
+            onUndo={undo}
+            onReset={reset}
+            canUndo={canUndo}
+            disabled={false}
+          />
         </div>
       </div>
     </div>

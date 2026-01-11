@@ -63,20 +63,20 @@ This implementation plan creates a simple, responsive web-based Paper Soccer gam
     - **Property 3: Game State Display Accuracy**
     - **Validates: Requirements 1.5, 2.1, 2.3**
 
-- [ ] 4. Create game controls and UI
-  - [ ] 4.1 Implement GameControls component
+- [x] 4. Create game controls and UI
+  - [x] 4.1 Implement GameControls component
     - Add Undo button with proper state management
     - Add Reset/New Game button
     - Create responsive button layout for mobile and desktop
     - _Requirements: 2.4, 2.5_
 
-  - [ ] 4.2 Add keyboard shortcuts for desktop
+  - [x] 4.2 Add keyboard shortcuts for desktop
     - Implement Space key for undo
     - Implement R key for reset
     - Add visual indicators for keyboard shortcuts
     - _Requirements: 3.4_
 
-  - [ ] 4.3 Create Instructions component
+  - [x] 4.3 Create Instructions component
     - Add clear, concise game rules
     - Make instructions collapsible/expandable
     - Ensure readability on mobile devices
