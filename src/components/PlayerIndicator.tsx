@@ -1,14 +1,15 @@
+import React, { useMemo } from 'react';
 import type { GameState } from '@paper-soccer/core';
 
 interface PlayerIndicatorProps {
   gameState: GameState;
 }
 
-export function PlayerIndicator({ gameState }: PlayerIndicatorProps) {
+export const PlayerIndicator = React.memo<PlayerIndicatorProps>(({ gameState }) => {
   const { current, winner, blockedLoser, extraTurn } = gameState;
   
-  // Determine the display status
-  const getGameStatus = () => {
+  // Determine the display status - memoized for performance
+  const gameStatus = useMemo(() => {
     if (winner !== null) {
       return {
         type: 'winner' as const,
@@ -30,19 +31,17 @@ export function PlayerIndicator({ gameState }: PlayerIndicatorProps) {
       message: `Player ${current + 1}'s Turn${extraTurn ? ' (Extra Turn)' : ''}`,
       className: 'text-emerald-200'
     };
-  };
-
-  const status = getGameStatus();
+  }, [current, winner, blockedLoser, extraTurn]);
 
   return (
     <div className="player-indicator text-center py-4" style={{ touchAction: 'manipulation' }}>
       <div className="text-lg font-semibold mb-2" style={{ touchAction: 'manipulation' }}>
-        <span className={status.className} style={{ touchAction: 'manipulation' }}>
-          {status.message}
+        <span className={gameStatus.className} style={{ touchAction: 'manipulation' }}>
+          {gameStatus.message}
         </span>
       </div>
       
-      {status.type === 'playing' && (
+      {gameStatus.type === 'playing' && (
         <div className="flex justify-center items-center space-x-4" style={{ touchAction: 'manipulation' }}>
           <div className={`player-badge px-3 py-1 rounded-full text-sm font-medium transition-all duration-200 ${
             current === 0 
@@ -62,11 +61,11 @@ export function PlayerIndicator({ gameState }: PlayerIndicatorProps) {
         </div>
       )}
       
-      {extraTurn && status.type === 'playing' && (
+      {extraTurn && gameStatus.type === 'playing' && (
         <div className="mt-2 text-xs text-yellow-200 animate-pulse" style={{ touchAction: 'manipulation' }}>
           Bounced off the edge - same player continues!
         </div>
       )}
     </div>
   );
-}
+});

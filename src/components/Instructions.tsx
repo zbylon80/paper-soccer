@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 
-export function Instructions() {
+export const Instructions = React.memo(() => {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const toggleInstructions = () => {
-    setIsExpanded(!isExpanded);
-  };
+  const toggleInstructions = useCallback(() => {
+    setIsExpanded(prev => !prev);
+  }, []);
 
   return (
     <div className="instructions">
@@ -73,4 +73,4 @@ export function Instructions() {
       )}
     </div>
   );
-}
+});

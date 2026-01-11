@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import type { GameState, GameConfig, Pos } from '@paper-soccer/core';
 
 interface GameBoardProps {
@@ -8,7 +8,7 @@ interface GameBoardProps {
   disabled?: boolean;
 }
 
-export function GameBoard({ gameState, gameConfig, onMove, disabled }: GameBoardProps) {
+export const GameBoard = React.memo<GameBoardProps>(({ gameState, gameConfig, onMove, disabled }) => {
   const { width, height, goalWidth } = gameConfig;
   const { pos: ballPosition, validMoves, edges } = gameState;
   
@@ -16,20 +16,26 @@ export function GameBoard({ gameState, gameConfig, onMove, disabled }: GameBoard
   const [hoveredPosition, setHoveredPosition] = useState<Pos | null>(null);
   const [touchedPosition, setTouchedPosition] = useState<Pos | null>(null);
   
-  // SVG dimensions and scaling (swapped for 90-degree rotation)
-  const padding = 40;
-  const cellSize = 35; // Increased from 30 to 35 for better desktop visibility
-  const svgWidth = height * cellSize + 2 * padding;   // height gry -> width SVG
-  const svgHeight = width * cellSize + 2 * padding;   // width gry -> height SVG
+  // SVG dimensions and scaling (swapped for 90-degree rotation) - memoized
+  const svgDimensions = useMemo(() => {
+    const padding = 40;
+    const cellSize = 35;
+    return {
+      padding,
+      cellSize,
+      svgWidth: height * cellSize + 2 * padding,
+      svgHeight: width * cellSize + 2 * padding
+    };
+  }, [width, height]);
   
-  // Convert game coordinates to SVG coordinates (rotate 90 degrees)
-  const gameToSvg = (pos: Pos) => ({
-    x: pos.y * cellSize + padding,  // y gry -> x SVG
-    y: pos.x * cellSize + padding   // x gry -> y SVG
-  });
+  // Convert game coordinates to SVG coordinates (rotate 90 degrees) - memoized
+  const gameToSvg = useCallback((pos: Pos) => ({
+    x: pos.y * svgDimensions.cellSize + svgDimensions.padding,
+    y: pos.x * svgDimensions.cellSize + svgDimensions.padding
+  }), [svgDimensions]);
   
-  // Generate field grid points (same as before, rotation handled in gameToSvg)
-  const generateGridPoints = () => {
+  // Generate field grid points - memoized
+  const gridPoints = useMemo(() => {
     const points = [];
     for (let y = 0; y <= height; y++) {
       for (let x = 0; x <= width; x++) {
@@ -37,10 +43,10 @@ export function GameBoard({ gameState, gameConfig, onMove, disabled }: GameBoard
       }
     }
     return points;
-  };
+  }, [width, height]);
   
-  // Generate field boundary lines (original logic, rotation handled in gameToSvg)
-  const generateBoundaryLines = () => {
+  // Generate field boundary lines - memoized
+  const boundaryLines = useMemo(() => {
     const lines = [];
     
     // Top boundary
@@ -71,13 +77,12 @@ export function GameBoard({ gameState, gameConfig, onMove, disabled }: GameBoard
     }
     
     return lines;
-  };
+  }, [width, height, goalWidth]);
   
-  // Generate existing game edges
-  const generateGameEdges = () => {
+  // Generate existing game edges - memoized
+  const gameEdges = useMemo(() => {
     const gameEdges = [];
     for (const edgeKey of edges) {
-      // Format klucza: "x1,y1|x2,y2" (używa | jako separator, nie -)
       const [fromStr, toStr] = edgeKey.split('|');
       const [fromX, fromY] = fromStr.split(',').map(Number);
       const [toX, toY] = toStr.split(',').map(Number);
@@ -88,64 +93,60 @@ export function GameBoard({ gameState, gameConfig, onMove, disabled }: GameBoard
       });
     }
     return gameEdges;
-  };
+  }, [edges]);
   
-  // Check if a position is a valid move
-  const isValidMove = (pos: Pos) => {
+  // Check if a position is a valid move - memoized
+  const isValidMove = useCallback((pos: Pos) => {
     return validMoves.some(move => move.x === pos.x && move.y === pos.y);
-  };
+  }, [validMoves]);
   
-  // Handle click/touch on a position
+  // Handle click/touch on a position - memoized
   const handlePositionClick = useCallback((pos: Pos) => {
     if (disabled || !isValidMove(pos)) return;
     onMove(pos);
-  }, [disabled, validMoves, onMove]);
+  }, [disabled, isValidMove, onMove]);
   
-  // Handle mouse events
+  // Handle mouse events - memoized
   const handleMouseEnter = useCallback((pos: Pos) => {
     if (disabled || !isValidMove(pos)) return;
     setHoveredPosition(pos);
-  }, [disabled, validMoves]);
+  }, [disabled, isValidMove]);
   
   const handleMouseLeave = useCallback(() => {
     setHoveredPosition(null);
   }, []);
   
-  // Handle touch events
+  // Handle touch events - memoized
   const handleTouchStart = useCallback((e: React.TouchEvent, pos: Pos) => {
-    e.preventDefault(); // Prevent mouse events from firing
+    e.preventDefault();
     if (disabled) return;
     if (isValidMove(pos)) {
       setTouchedPosition(pos);
     }
-  }, [disabled, validMoves]);
+  }, [disabled, isValidMove]);
   
   const handleTouchEnd = useCallback((e: React.TouchEvent, pos: Pos) => {
-    e.preventDefault(); // Always prevent default to avoid zoom
+    e.preventDefault();
     setTouchedPosition(null);
     if (disabled || !isValidMove(pos)) return;
     onMove(pos);
-  }, [disabled, validMoves, onMove]);
+  }, [disabled, isValidMove, onMove]);
   
   const handleTouchCancel = useCallback(() => {
     setTouchedPosition(null);
   }, []);
   
-  // Check if position is currently being interacted with
+  // Check if position is currently being interacted with - memoized
   const isPositionActive = useCallback((pos: Pos) => {
     return (hoveredPosition && hoveredPosition.x === pos.x && hoveredPosition.y === pos.y) ||
            (touchedPosition && touchedPosition.x === pos.x && touchedPosition.y === pos.y);
   }, [hoveredPosition, touchedPosition]);
   
-  const gridPoints = generateGridPoints();
-  const boundaryLines = generateBoundaryLines();
-  const gameEdges = generateGameEdges();
-  
   return (
     <div className="game-board">
       <svg
         className="game-svg"
-        viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+        viewBox={`0 0 ${svgDimensions.svgWidth} ${svgDimensions.svgHeight}`}
         xmlns="http://www.w3.org/2000/svg"
         onTouchStart={(e) => e.preventDefault()}
         onTouchEnd={(e) => e.preventDefault()}
@@ -155,8 +156,8 @@ export function GameBoard({ gameState, gameConfig, onMove, disabled }: GameBoard
         <rect
           x={0}
           y={0}
-          width={svgWidth}
-          height={svgHeight}
+          width={svgDimensions.svgWidth}
+          height={svgDimensions.svgHeight}
           fill="transparent"
           style={{
             touchAction: 'manipulation',
@@ -170,28 +171,28 @@ export function GameBoard({ gameState, gameConfig, onMove, disabled }: GameBoard
         
         {/* Field background (rotated dimensions) */}
         <rect
-          x={padding}
-          y={padding}
-          width={height * cellSize}  // height gry -> width SVG
-          height={width * cellSize}  // width gry -> height SVG
+          x={svgDimensions.padding}
+          y={svgDimensions.padding}
+          width={height * svgDimensions.cellSize}
+          height={width * svgDimensions.cellSize}
           fill="rgba(16, 185, 129, 0.1)"
           stroke="none"
         />
         
         {/* Goal areas (now at top and bottom) */}
         <rect
-          x={padding + ((height - goalWidth) / 2) * cellSize}
-          y={padding - 20}
-          width={goalWidth * cellSize}
+          x={svgDimensions.padding + ((height - goalWidth) / 2) * svgDimensions.cellSize}
+          y={svgDimensions.padding - 20}
+          width={goalWidth * svgDimensions.cellSize}
           height={20}
           fill="rgba(239, 68, 68, 0.2)"
           stroke="rgba(239, 68, 68, 0.5)"
           strokeWidth="2"
         />
         <rect
-          x={padding + ((height - goalWidth) / 2) * cellSize}
-          y={padding + width * cellSize}
-          width={goalWidth * cellSize}
+          x={svgDimensions.padding + ((height - goalWidth) / 2) * svgDimensions.cellSize}
+          y={svgDimensions.padding + width * svgDimensions.cellSize}
+          width={goalWidth * svgDimensions.cellSize}
           height={20}
           fill="rgba(239, 68, 68, 0.2)"
           stroke="rgba(239, 68, 68, 0.5)"
@@ -240,7 +241,7 @@ export function GameBoard({ gameState, gameConfig, onMove, disabled }: GameBoard
           const isActive = isPositionActive(point);
           
           // Touch target size - minimum 44px for mobile usability
-          const touchTargetSize = Math.max(44, cellSize * 1.6); // Increased multiplier from 1.5 to 1.6
+          const touchTargetSize = Math.max(44, svgDimensions.cellSize * 1.6);
           
           return (
             <g key={`point-${index}`}>
@@ -289,7 +290,7 @@ export function GameBoard({ gameState, gameConfig, onMove, disabled }: GameBoard
                 strokeWidth={isBall ? 2 : isActive ? 2 : 1}
                 className={isValid ? "transition-all duration-200" : ""}
                 style={{ 
-                  pointerEvents: 'none', // Let the touch target handle events
+                  pointerEvents: 'none',
                   filter: isBall ? 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' : 'none',
                   transform: isActive ? 'scale(1.2)' : 'scale(1)',
                   transformOrigin: 'center'
@@ -325,4 +326,4 @@ export function GameBoard({ gameState, gameConfig, onMove, disabled }: GameBoard
       </svg>
     </div>
   );
-}
+});

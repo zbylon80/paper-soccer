@@ -1,3 +1,5 @@
+import React, { useCallback } from 'react';
+
 interface GameControlsProps {
   onUndo: () => boolean;
   onReset: () => void;
@@ -5,18 +7,18 @@ interface GameControlsProps {
   disabled?: boolean;
 }
 
-export function GameControls({ onUndo, onReset, canUndo, disabled }: GameControlsProps) {
-  const handleUndo = () => {
+export const GameControls = React.memo<GameControlsProps>(({ onUndo, onReset, canUndo, disabled }) => {
+  const handleUndo = useCallback(() => {
     if (!disabled && canUndo) {
       onUndo();
     }
-  };
+  }, [disabled, canUndo, onUndo]);
 
-  const handleReset = () => {
+  const handleReset = useCallback(() => {
     if (!disabled) {
       onReset();
     }
-  };
+  }, [disabled, onReset]);
 
   return (
     <div className="game-controls" style={{ touchAction: 'manipulation' }}>
@@ -65,4 +67,4 @@ export function GameControls({ onUndo, onReset, canUndo, disabled }: GameControl
       </button>
     </div>
   );
-}
+});
