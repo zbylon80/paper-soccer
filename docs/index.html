@@ -3,12 +3,56 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/paper-soccer/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <meta name="description" content="Simple web-based Paper Soccer game - play on desktop and mobile" />
+    <!-- Enhanced viewport meta tag for mobile optimization -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <!-- Prevent zoom on input focus (iOS Safari) -->
+    <meta name="format-detection" content="telephone=no" />
+    <!-- PWA and mobile app-like behavior -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Paper Soccer" />
+    <!-- Theme colors for mobile browsers -->
     <meta name="theme-color" content="#064e3b" />
+    <meta name="msapplication-navbutton-color" content="#064e3b" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="#064e3b" />
+    <!-- SEO and sharing -->
+    <meta name="description" content="Simple web-based Paper Soccer game - play on desktop and mobile" />
+    <meta name="keywords" content="paper soccer, game, mobile, web game, sports" />
+    <meta name="author" content="Paper Soccer Game" />
+    <!-- Open Graph for social sharing -->
+    <meta property="og:title" content="Paper Soccer - Simple Web Game" />
+    <meta property="og:description" content="Play Paper Soccer in your browser - works on desktop and mobile" />
+    <meta property="og:type" content="website" />
+    <!-- Prevent automatic phone number detection -->
+    <meta name="format-detection" content="telephone=no, date=no, email=no, address=no" />
     <title>Paper Soccer - Simple Web Game</title>
-    <script type="module" crossorigin src="/paper-soccer/assets/index-CFD3sAcI.js"></script>
-    <link rel="stylesheet" crossorigin href="/paper-soccer/assets/index-CfTTJbYp.css">
+    <style>
+      /* Critical CSS for preventing layout shift */
+      body {
+        margin: 0;
+        padding: 0;
+        overflow-x: hidden;
+        /* Prevent bounce scrolling on iOS */
+        -webkit-overflow-scrolling: touch;
+        /* Prevent text size adjustment on orientation change */
+        -webkit-text-size-adjust: 100%;
+        -ms-text-size-adjust: 100%;
+      }
+      
+      /* Prevent zoom on double tap */
+      * {
+        touch-action: manipulation;
+      }
+      
+      /* Loading state to prevent flash */
+      #root {
+        min-height: 100vh;
+        background: linear-gradient(135deg, #064e3b, #065f46, #047857);
+      }
+    </style>
+    <script type="module" crossorigin src="/paper-soccer/assets/index-BC5f7xW7.js"></script>
+    <link rel="stylesheet" crossorigin href="/paper-soccer/assets/index-vnjn_T5Y.css">
   </head>
   <body>
     <div id="root"></div>

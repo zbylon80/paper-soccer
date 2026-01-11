@@ -27,18 +27,13 @@ export default function App() {
   return (
     <div className="game-container min-h-screen bg-gradient-to-br from-emerald-950 via-emerald-900 to-emerald-800 text-emerald-50">
       <div className="w-full max-w-6xl">
-        <h1 className="text-3xl font-bold text-center mb-6">Paper Soccer</h1>
-        <div className="text-center text-emerald-200 mb-4">
+        <h1 className="text-2xl md:text-3xl font-bold text-center mb-4 md:mb-6">Paper Soccer</h1>
+        <div className="text-center text-emerald-200 mb-3 md:mb-4 text-sm md:text-base">
           Simple web-based game - works on desktop and mobile
         </div>
         
-        {/* Instructions */}
-        <div className="mb-6">
-          <Instructions />
-        </div>
-        
         {/* Game board with the new GameBoard component */}
-        <div className="game-board bg-emerald-800/30 rounded-lg p-4 backdrop-blur-sm">
+        <div className="game-board bg-emerald-800/30 rounded-lg p-3 md:p-4 backdrop-blur-sm">
           <GameBoard
             gameState={gameState}
             gameConfig={DEFAULT_CONFIG}
@@ -46,14 +41,22 @@ export default function App() {
           />
         </div>
         
-        <div className="game-controls mt-4">
-          <PlayerIndicator gameState={gameState} />
-          <GameControls
-            onUndo={undo}
-            onReset={reset}
-            canUndo={canUndo}
-            disabled={false}
-          />
+        {/* Game sidebar for landscape mode and controls for portrait */}
+        <div className="game-sidebar">
+          {/* Instructions */}
+          <div className="mb-4 md:mb-6">
+            <Instructions />
+          </div>
+          
+          <div className="game-controls mt-3 md:mt-4">
+            <PlayerIndicator gameState={gameState} />
+            <GameControls
+              onUndo={undo}
+              onReset={reset}
+              canUndo={canUndo}
+              disabled={false}
+            />
+          </div>
         </div>
       </div>
     </div>
